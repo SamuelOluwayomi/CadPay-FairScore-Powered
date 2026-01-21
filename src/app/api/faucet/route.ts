@@ -1,6 +1,8 @@
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkMinimumScore, MINIMUM_FAUCET_SCORE } from '@/services/fairscale';
+
 
 export async function POST(req: NextRequest) {
     try {
@@ -8,6 +10,13 @@ export async function POST(req: NextRequest) {
 
         if (!userAddress) {
             return NextResponse.json({ error: 'Missing userAddress' }, { status: 400 });
+        }
+
+        const meetsMinimum = await checkMinimumScore(userAddress, MINIMUM_FAUCET_SCORE);
+        if (!meetsMinimum) {
+            return NextResponse.json({
+                error: `Trust score too low. Minimum score of ${MINIMUM_FAUCET_SCORE} required to prevent Sybil attacks. Please use a funded wallet.`
+            }, { status: 403 });
         }
 
         const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com";

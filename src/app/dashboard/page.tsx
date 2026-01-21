@@ -21,6 +21,7 @@ import ServiceCard from '@/components/subscriptions/ServiceCard';
 import SubscribeModal from '@/components/subscriptions/SubscribeModal';
 import ActiveSubscriptionCard from '@/components/subscriptions/ActiveSubscriptionCard';
 import SecuritySettings from '@/components/security/SecuritySettings';
+import TrustScore from '@/components/security/TrustScore';
 import FullProfileEditModal from '@/components/shared/FullProfileEditModal';
 import OnboardingModal from '@/components/shared/OnboardingModal';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
@@ -883,6 +884,7 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
 
                 {/* Quick Stats & Savings (Only show if pots exist) */}
                 <div className="space-y-4">
+                    <TrustScore walletAddress={address} />
                     <StatCard title="Active Subscriptions" value={subscriptions.length.toString()} color="blue" />
 
                     {pots.length > 0 && (

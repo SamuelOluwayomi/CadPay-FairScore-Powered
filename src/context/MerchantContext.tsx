@@ -24,6 +24,7 @@ export interface MerchantService {
     price: number;
     icon: string; // url or icon name
     color: string;
+    minimumTrustScore?: number;
 }
 
 interface MerchantContextType {
@@ -33,7 +34,7 @@ interface MerchantContextType {
     createMerchant: (name: string, email: string, password?: string) => Promise<Merchant>;
     loginMerchant: (email: string, password?: string) => Promise<boolean>;
     logoutMerchant: () => void;
-    createNewService: (name: string, price: number, description: string, color: string) => void;
+    createNewService: (name: string, price: number, description: string, color: string, minimumTrustScore?: number) => void;
 
     getMerchantServices: (merchantId: string) => MerchantService[];
     isLoading: boolean;
@@ -134,7 +135,7 @@ export function MerchantProvider({ children }: { children: React.ReactNode }) {
     const logoutMerchant = () => {
     };
 
-    const createNewService = (name: string, price: number, description: string, color: string) => {
+    const createNewService = (name: string, price: number, description: string, color: string, minimumTrustScore?: number) => {
         if (!merchant) return;
         const newService: MerchantService = {
             id: crypto.randomUUID(),
@@ -143,7 +144,8 @@ export function MerchantProvider({ children }: { children: React.ReactNode }) {
             price,
             description,
             icon: 'Storefront',
-            color
+            color,
+            minimumTrustScore: minimumTrustScore
         };
         const updatedServices = [...services, newService];
         setServices(updatedServices);

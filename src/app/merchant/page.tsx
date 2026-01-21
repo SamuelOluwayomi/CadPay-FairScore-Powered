@@ -40,6 +40,9 @@ export default function MerchantDashboard() {
 
     const [newServicePrice, setNewServicePrice] = useState(19.99);
     const [newServiceColor, setNewServiceColor] = useState('#EF4444');
+    const [requireTrustScore, setRequireTrustScore] = useState(false);
+    const [minimumTrustScore, setMinimumTrustScore] = useState(50);
+
 
     // Navigation state
     const [activeSection, setActiveSection] = useState<'dashboard' | 'analytics' | 'customers' | 'invoices' | 'developer'>('dashboard');
@@ -324,11 +327,19 @@ export default function MerchantDashboard() {
         setIsCreating(true);
         // Simulate network delay or await actual creation if async
         await new Promise(resolve => setTimeout(resolve, 1000));
-        createNewService(newServiceName, newServicePrice, "Monthly Subscription", newServiceColor);
+        createNewService(
+            newServiceName,
+            newServicePrice,
+            "Monthly Subscription",
+            newServiceColor,
+            requireTrustScore ? minimumTrustScore : undefined
+        );
         setIsCreating(false);
         setIsCreateModalOpen(false);
         setNewServiceName('');
         setNewServicePrice(19.99);
+        setRequireTrustScore(false);
+        setMinimumTrustScore(50);
     };
 
     if (isLoading) {
@@ -800,6 +811,35 @@ export default function MerchantDashboard() {
                                             />
                                         ))}
                                     </div>
+                                </div>
+
+                                <div className="border-t border-white/10 pt-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-zinc-400 uppercase">FairScale Trust Gate</label>
+                                            <p className="text-xs text-zinc-500 mt-1">Require minimum trust score</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRequireTrustScore(!requireTrustScore)}
+                                            className={`relative w-12 h-6 rounded-full transition-colors ${requireTrustScore ? 'bg-orange-500' : 'bg-zinc-700'}`}
+                                        >
+                                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${requireTrustScore ? 'translate-x-6' : ''}`} />
+                                        </button>
+                                    </div>
+                                    {requireTrustScore && (
+                                        <div>
+                                            <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Minimum Score</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="100"
+                                                value={minimumTrustScore}
+                                                onChange={e => setMinimumTrustScore(parseInt(e.target.value))}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <button
