@@ -23,6 +23,7 @@ import ActiveSubscriptionCard from '@/components/subscriptions/ActiveSubscriptio
 import SecuritySettings from '@/components/security/SecuritySettings';
 import TrustScore from '@/components/security/TrustScore';
 import ReputationLevel from '@/components/security/ReputationLevel';
+import DepositTierDisplay from '@/components/security/DepositTierDisplay';
 import FullProfileEditModal from '@/components/shared/FullProfileEditModal';
 import OnboardingModal from '@/components/shared/OnboardingModal';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
@@ -83,11 +84,14 @@ export default function Dashboard() {
         fetchScore();
     }, [address]);
 
+
     // Calculate CadPay Reputation Boost based on Savings Behavior
     const cadPayBoost = useMemo(() => {
         if (!pots || pots.length === 0) return 0;
 
         let totalBoost = 0;
+        let depositTierBreakdown = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+
         pots.forEach(pot => {
             // Base boost for active commitment
             totalBoost += 2;
@@ -100,14 +104,58 @@ export default function Dashboard() {
             const durationMultiplier = durationMonths >= 12 ? 5 : durationMonths >= 6 ? 3 : durationMonths >= 3 ? 1.5 : 1;
             totalBoost += durationMultiplier * 2;
 
-            // Balance bonus (1 point per 10 USDC saved)
+            // Tiered Deposit Bonus - Earn more points for larger deposits
             if (pot.balance > 0) {
-                totalBoost += (pot.balance / 10);
+                let depositBonus = 0;
+                const balance = pot.balance;
+
+                if (balance >= 500) {
+                    // Platinum Tier: 500+ USDC = +15 points
+                    depositBonus = 15;
+                    depositTierBreakdown.platinum++;
+                } else if (balance >= 200) {
+                    // Gold Tier: 200-499 USDC = +10 points
+                    depositBonus = 10;
+                    depositTierBreakdown.gold++;
+                } else if (balance >= 50) {
+                    // Silver Tier: 50-199 USDC = +5 points
+                    depositBonus = 5;
+                    depositTierBreakdown.silver++;
+                } else if (balance >= 1) {
+                    // Bronze Tier: 1-49 USDC = +2 points
+                    depositBonus = 2;
+                    depositTierBreakdown.bronze++;
+                }
+
+                totalBoost += depositBonus;
             }
         });
 
         return Math.min(30, Math.round(totalBoost)); // Cap local boost at +30 points
     }, [pots]);
+
+    // Separate calculation for deposit tier information (for UI display)
+    const depositTierInfo = useMemo(() => {
+        if (!pots || pots.length === 0) return null;
+
+        const tiers = {
+            bronze: { count: 0, points: 2, range: '1-49 USDC', color: 'text-amber-600' },
+            silver: { count: 0, points: 5, range: '50-199 USDC', color: 'text-gray-400' },
+            gold: { count: 0, points: 10, range: '200-499 USDC', color: 'text-yellow-500' },
+            platinum: { count: 0, points: 15, range: '500+ USDC', color: 'text-cyan-400' }
+        };
+
+        pots.forEach(pot => {
+            const balance = pot.balance;
+            if (balance >= 500) tiers.platinum.count++;
+            else if (balance >= 200) tiers.gold.count++;
+            else if (balance >= 50) tiers.silver.count++;
+            else if (balance >= 1) tiers.bronze.count++;
+        });
+
+        return tiers;
+    }, [pots]);
+
 
     const finalTrustScore = Math.min(100, userTrustScore + cadPayBoost);
 
@@ -184,13 +232,46 @@ export default function Dashboard() {
                     throw new Error(`Failed to derive pot ATA`);
                 }
 
+
                 try {
                     const potAtaInfo = await connection.getAccountInfo(potAta);
                     if (!potAtaInfo) {
+                        // Check if smart wallet has enough SOL for ATA creation rent (~0.00204 SOL)
+                        const walletBalance = await connection.getBalance(new PublicKey(address));
+                        const requiredBalance = 0.003 * 1_000_000_000; // 0.003 SOL (with buffer)
+
+                        if (walletBalance < requiredBalance) {
+                            console.log(`Wallet needs funding for ATA creation. Current: ${walletBalance / 1_000_000_000} SOL, Required: ${requiredBalance / 1_000_000_000} SOL`);
+
+                            // Request funding from treasury for ATA rent
+                            try {
+                                const fundResponse = await fetch('/api/fund-rent', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        accountAddress: address,
+                                        rentAmount: requiredBalance
+                                    }),
+                                });
+
+                                if (fundResponse.ok) {
+                                    const fundData = await fundResponse.json();
+                                    console.log('Wallet funded for ATA creation:', fundData.signature);
+                                    // Wait for funding to process
+                                    await new Promise(resolve => setTimeout(resolve, 2000));
+                                } else {
+                                    const errorData = await fundResponse.json();
+                                    throw new Error(`Failed to fund wallet: ${errorData.error || 'Unknown error'}`);
+                                }
+                            } catch (fundError: any) {
+                                throw new Error(`Wallet needs funding but treasury is unavailable: ${fundError.message}. Please add SOL to your wallet manually.`);
+                            }
+                        }
+
                         showToast(`Initializing savings account for "${pot.name}"...`, 'info');
                         const createAtaTx = new Transaction().add(
                             createAssociatedTokenAccountInstruction(
-                                (wallet as any)?.publicKey || new PublicKey(address), // payer - MUST be the signer (EOA), not the Smart Wallet PDA
+                                new PublicKey(address), // payer - smart wallet (now funded)
                                 potAta, // ata
                                 potAddress, // owner
                                 CADPAY_MINT, // mint
@@ -222,6 +303,7 @@ export default function Dashboard() {
                     console.error('ATA pre-creation failed:', ataError);
                     throw new Error(`Failed to initialize savings account: ${ataError?.message || 'Unknown error'}. Please try again.`);
                 }
+
 
                 // For wallet-based pots, skip PDA verification (they're just regular wallet addresses)
                 if (!isWalletBased) {
@@ -630,6 +712,7 @@ export default function Dashboard() {
                             copyToClipboard={copyToClipboard}
                             onOpenSend={() => setShowSendModal(true)}
                             userTrustScore={finalTrustScore}
+                            depositTierInfo={depositTierInfo}
                         />
                     )}
 
@@ -787,7 +870,7 @@ function NavItem({ icon, label, active, onClick }: any) {
 }
 
 // Overview Section
-function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc, loading, copyToClipboard, onOpenSend, userTrustScore }: any) {
+function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc, loading, copyToClipboard, onOpenSend, userTrustScore, depositTierInfo }: any) {
     const [showUSD, setShowUSD] = useState(true);
     const [solPrice, setSolPrice] = useState<number | null>(null);
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -987,6 +1070,7 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
                     refreshBalance={refreshBalance}
                     refetchUsdc={refetchUsdc}
                     showToast={showToast}
+                    depositTierInfo={depositTierInfo}
                 />
             </div>
 
@@ -1202,11 +1286,11 @@ function TierCard({ name, minScore, color, icon, perks, rankUp, isCurrentTier }:
 
 
 // Right Column Carousel with Auto-Rotation
-function RightColumnCarousel({ userTrustScore, subscriptionsCount, pots, address, wallet, connection, signAndSendTransaction, fetchPots, refreshBalance, refetchUsdc, showToast }: any) {
+function RightColumnCarousel({ userTrustScore, subscriptionsCount, pots, address, wallet, connection, signAndSendTransaction, fetchPots, refreshBalance, refetchUsdc, showToast, depositTierInfo }: any) {
     const [currentSlide, setCurrentSlide] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
 
-    const totalSlides = 2; // Always 2 slides: Reputation Level, then Subscriptions + Quick Save
+    const totalSlides = 3; // 3 slides: Reputation Level, Subscriptions + Quick Save, Deposit Tiers
 
     // Auto-rotate every 2 seconds
     useEffect(() => {
@@ -1306,6 +1390,11 @@ function RightColumnCarousel({ userTrustScore, subscriptionsCount, pots, address
                             </div>
                         </div>
                     )}
+                </div>
+
+                {/* Slide 3: Deposit Tiers */}
+                <div className="min-w-full">
+                    <DepositTierDisplay tiers={depositTierInfo} />
                 </div>
             </motion.div>
 
