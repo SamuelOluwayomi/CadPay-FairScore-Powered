@@ -269,32 +269,33 @@ export default function Dashboard() {
                         }
 
                         showToast(`Initializing savings account for "${pot.name}"...`, 'info');
-                        const createAtaTx = new Transaction().add(
-                            createAssociatedTokenAccountInstruction(
-                                new PublicKey(address), // payer - smart wallet (now funded)
-                                potAta, // ata
-                                potAddress, // owner
-                                CADPAY_MINT, // mint
-                                TOKEN_PROGRAM_ID,
-                                ASSOCIATED_TOKEN_PROGRAM_ID
-                            )
-                        );
-                        // Send ATA creation in separate transaction to keep deposit tx small
-                        const ataSignature = await signAndSendTransaction(createAtaTx);
 
-                        // CRITICAL: Wait for confirmation before proceeding
-                        try {
-                            await connection.confirmTransaction(ataSignature, 'confirmed');
-                            console.log(`✅ ATA creation confirmed: ${ataSignature}`);
-                        } catch (confirmError) {
-                            console.warn('ATA confirmation timeout, waiting additional time...');
-                            await new Promise(resolve => setTimeout(resolve, 3000));
+                        // SOLUTION: Use treasury to create ATA via API instead of smart wallet
+                        // This avoids "Transaction too large" error (smart wallet adds wrapper instructions)
+                        const createAtaResponse = await fetch('/api/create-ata', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ownerAddress: potAddress.toBase58(),
+                                mintAddress: CADPAY_MINT.toBase58()
+                            }),
+                        });
+
+                        if (!createAtaResponse.ok) {
+                            const errorData = await createAtaResponse.json();
+                            throw new Error(`Failed to create ATA: ${errorData.error || 'Unknown error'}`);
                         }
 
-                        // Verify the ATA now exists before proceeding
+                        const ataData = await createAtaResponse.json();
+                        console.log('✅ ATA created via treasury:', ataData);
+
+                        // Wait for the ATA to be available
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+
+                        // Verify the ATA exists
                         const verifyAtaInfo = await connection.getAccountInfo(potAta);
                         if (!verifyAtaInfo) {
-                            throw new Error(`ATA creation transaction sent but account not found. Please try depositing again in a few seconds.`);
+                            throw new Error(`ATA creation completed but account not found. Please try again.`);
                         }
 
                         showToast(`Savings account initialized for "${pot.name}"`, 'success');
