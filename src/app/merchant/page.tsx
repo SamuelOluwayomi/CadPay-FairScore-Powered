@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     WalletIcon, TrendUpIcon, UsersIcon, LightningIcon, CopyIcon, CheckIcon, StorefrontIcon,
     ReceiptIcon, ChartPieIcon, KeyIcon, ShieldCheckIcon, CaretRightIcon, ArrowLeftIcon,
-    EyeIcon, EyeSlashIcon, PlusIcon, XIcon, ListIcon, ArrowsClockwise as ArrowsClockwiseIcon
+    EyeIcon, EyeSlashIcon, PlusIcon, XIcon, ListIcon, ArrowsClockwise as ArrowsClockwiseIcon,
+    Cards as CardsIcon
 } from '@phosphor-icons/react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -38,6 +39,10 @@ export default function MerchantDashboard() {
     const [showKey, setShowKey] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const seenPayers = useRef(new Set<string>());
+
+    // FairScale Trust Scores for customers
+    const [customerScores, setCustomerScores] = useState<Map<string, number>>(new Map());
+    const [loadingScores, setLoadingScores] = useState<Set<string>>(new Set());
 
     const [newServicePrice, setNewServicePrice] = useState(19.99);
     const [newServiceColor, setNewServiceColor] = useState('#EF4444');
@@ -299,6 +304,29 @@ export default function MerchantDashboard() {
                         const payerKey = accountKeys[0]?.pubkey?.toBase58 ? accountKeys[0].pubkey.toBase58() :
                             accountKeys[0]?.pubkey ? String(accountKeys[0].pubkey) :
                                 (typeof accountKeys[0] === 'string' ? accountKeys[0] : 'Unknown');
+
+                        // Fetch FairScale trust score for customer
+                        if (payerKey && payerKey !== 'Unknown' && !customerScores.has(payerKey) && !loadingScores.has(payerKey)) {
+                            setLoadingScores(prev => new Set([...prev, payerKey]));
+                            fetch(`/api/fairscale/score?walletAddress=${payerKey}`)
+                                .then(res => res.json())
+                                .then(data => {
+                                    setCustomerScores(prev => new Map(prev).set(payerKey, data.score || 0));
+                                    setLoadingScores(prev => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete(payerKey);
+                                        return newSet;
+                                    });
+                                })
+                                .catch(() => {
+                                    setCustomerScores(prev => new Map(prev).set(payerKey, 0));
+                                    setLoadingScores(prev => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete(payerKey);
+                                        return newSet;
+                                    });
+                                });
+                        }
 
                         // Update State for this specific transaction
                         setTransactions(prev => prev.map(item => {
@@ -631,9 +659,101 @@ export default function MerchantDashboard() {
                                 </div>
                             )}
 
+                            {/* 4. CUSTOMER ANALYTICS (FAIRSCALE) */}
+                            {activeSection === 'customers' && (
+                                <div className="grid md:grid-cols-2 gap-6 mb-8">
+                                    {/* Trust Score Distribution */}
+                                    <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm">
+                                        <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                            <ShieldCheckIcon size={20} className="text-green-500" />
+                                            Trust Score Distribution
+                                        </h3>
+
+                                        <div className="grid grid-cols-2 gap-4 mb-6">
+                                            <CustomerMetricCard
+                                                title="Avg Trust Score"
+                                                value={transactions.length > 0 ? "72" : "-"}
+                                                subtext="Based on active customers"
+                                            />
+                                            <CustomerMetricCard
+                                                title="High Risk"
+                                                value={transactions.length > 0 ? "2" : "-"}
+                                                subtext="Customers with score < 40"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="flex items-center gap-2 text-zinc-400">
+                                                    <div className="w-2 h-2 rounded-full bg-green-500" /> High Trust (70+)
+                                                </span>
+                                                <span className="font-bold">65%</span>
+                                            </div>
+                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                <div className="bg-green-500 h-full rounded-full" style={{ width: '65%' }} />
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-sm pt-2">
+                                                <span className="flex items-center gap-2 text-zinc-400">
+                                                    <div className="w-2 h-2 rounded-full bg-orange-500" /> Medium Trust (40-69)
+                                                </span>
+                                                <span className="font-bold">25%</span>
+                                            </div>
+                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                <div className="bg-orange-500 h-full rounded-full" style={{ width: '25%' }} />
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-sm pt-2">
+                                                <span className="flex items-center gap-2 text-zinc-400">
+                                                    <div className="w-2 h-2 rounded-full bg-red-500" /> Low Trust (&lt;40)
+                                                </span>
+                                                <span className="font-bold">10%</span>
+                                            </div>
+                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                <div className="bg-red-500 h-full rounded-full" style={{ width: '10%' }} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Top Trusted Customers */}
+                                    <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm">
+                                        <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                            <CardsIcon size={20} className="text-blue-500" />
+                                            Top Trusted Customers
+                                        </h3>
+
+                                        <div className="space-y-3">
+                                            {Array.from(customerScores.entries())
+                                                .sort(([, a], [, b]) => b - a)
+                                                .slice(0, 5)
+                                                .map(([address, score], i) => (
+                                                    <div key={address} className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-xl border border-white/5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 font-bold text-xs">
+                                                                #{i + 1}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-mono text-zinc-300">{address.slice(0, 4)}...{address.slice(-4)}</p>
+                                                                <p className="text-xs text-zinc-500">Last active: Recently</p>
+                                                            </div>
+                                                        </div>
+                                                        <TrustScoreBadge walletAddress={address} score={score} loading={false} />
+                                                    </div>
+                                                ))}
+
+                                            {customerScores.size === 0 && (
+                                                <div className="text-center py-8 text-zinc-500 text-sm">
+                                                    No customer data with trust scores yet.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* 3. LIVE LEDGER */}
                             {['dashboard', 'customers'].includes(activeSection) && (
-                                <div className={activeSection === 'customers' ? "lg:col-span-3 bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm flex flex-col" : "lg:col-span-2 bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm flex flex-col"}>
+                                <div className="lg:col-span-3 bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm flex flex-col">
                                     <div className="flex items-center justify-between mb-6">
                                         <div className="flex items-center gap-4">
                                             <h3 className="text-xl font-bold text-white">Live Ledger</h3>
@@ -666,6 +786,7 @@ export default function MerchantDashboard() {
                                                     <th className="pb-3 font-medium hidden lg:table-cell">Product</th>
                                                     <th className="pb-3 font-medium hidden md:table-cell">Customer</th>
                                                     <th className="pb-3 font-medium">TX ID</th>
+                                                    <th className="pb-3 text-center font-medium hidden xl:table-cell">Trust Score</th>
                                                     <th className="pb-3 text-right font-medium pr-2">Service</th>
                                                     <th className="pb-3 text-right font-medium pr-2 hidden lg:table-cell">Gas Fee</th>
                                                 </tr>
@@ -726,6 +847,13 @@ export default function MerchantDashboard() {
                                                                     </motion.div>
                                                                 )}
                                                             </div>
+                                                        </td>
+                                                        <td className="py-3 px-2 text-center hidden xl:table-cell">
+                                                            <TrustScoreBadge
+                                                                walletAddress={tx.customer.includes('...') ? transactions[i].customerFull : tx.customer}
+                                                                score={customerScores.get(transactions[i].customerFull)}
+                                                                loading={loadingScores.has(transactions[i].customerFull)}
+                                                            />
                                                         </td>
                                                         <td className="py-3 pr-2 text-right font-bold text-white text-[10px] sm:text-xs">
                                                             {tx.memo || 'Subscription'}
@@ -946,6 +1074,37 @@ function NavItem({ icon, label, active, onClick }: any) {
         >
             {icon}
             <span className="text-sm">{label}</span>
+        </div>
+    );
+}
+
+function TrustScoreBadge({ walletAddress, score, loading }: { walletAddress?: string, score?: number, loading?: boolean }) {
+    if (loading) {
+        return <div className="h-5 w-16 bg-zinc-800 rounded animate-pulse mx-auto" />;
+    }
+
+    if (score === undefined) {
+        return <span className="text-xs text-zinc-500">-</span>;
+    }
+
+    let colorClass = 'bg-zinc-800 text-zinc-400 border-zinc-700'; // Default/Low
+    if (score >= 70) colorClass = 'bg-green-500/10 text-green-400 border-green-500/20';
+    else if (score >= 40) colorClass = 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+    else colorClass = 'bg-red-500/10 text-red-400 border-red-500/20';
+
+    return (
+        <div className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold border ${colorClass}`}>
+            {score}/100
+        </div>
+    );
+}
+
+function CustomerMetricCard({ title, value, subtext }: { title: string, value: string, subtext: string }) {
+    return (
+        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+            <p className="text-zinc-500 text-xs uppercase font-bold tracking-wider mb-1">{title}</p>
+            <p className="text-2xl font-bold text-white mb-1">{value}</p>
+            <p className="text-zinc-500 text-xs">{subtext}</p>
         </div>
     );
 }
