@@ -932,10 +932,6 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
                                                     })
                                                     .transaction();
 
-                                                // Don't set blockhash manually - Lazorkit's signAndSendTransaction handles it
-                                                // Setting it here can cause "TransactionTooOld" errors if there's any delay
-                                                // Lazorkit will fetch a fresh blockhash when signing
-
                                                 tx.feePayer = new PublicKey(address);
 
                                                 await signAndSendTransaction(tx);

@@ -41,13 +41,19 @@ export default function TrustScore({ walletAddress, compact = false }: TrustScor
 
     if (loading) {
         return (
-            <div className={`${compact ? 'p-3' : 'p-6'} bg-zinc-900/50 border border-white/10 rounded-2xl backdrop-blur-sm`}>
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-zinc-800 rounded-full animate-pulse" />
+            <div className="bg-zinc-900/40 backdrop-blur-md border border-white/10 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
                     <div className="flex-1">
                         <div className="h-4 bg-zinc-800 rounded w-24 mb-2 animate-pulse" />
-                        <div className="h-3 bg-zinc-800 rounded w-16 animate-pulse" />
+                        <div className="h-3 bg-zinc-800 rounded w-32 animate-pulse" />
                     </div>
+                    <div className="w-6 h-6 bg-zinc-800 rounded-full animate-pulse" />
+                </div>
+                <div className="flex items-center justify-center mb-4">
+                    <div className="w-32 h-32 bg-zinc-800 rounded-full animate-pulse" />
+                </div>
+                <div className="flex justify-center">
+                    <div className="h-6 bg-zinc-800 rounded-full w-24 animate-pulse" />
                 </div>
             </div>
         );
@@ -60,16 +66,37 @@ export default function TrustScore({ walletAddress, compact = false }: TrustScor
 
     if (compact) {
         return (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900/50 border border-white/10 rounded-lg">
-                <ShieldCheckIcon size={16} style={{ color }} />
-                <span className="text-xs font-bold text-white">{scoreData.score}</span>
-                <span className="text-xs text-zinc-400">{scoreData.tier}</span>
-            </div>
+            <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-zinc-900/40 backdrop-blur-md border border-white/10 rounded-2xl p-5"
+            >
+                <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-zinc-400 font-medium">Trust Score</p>
+                    <ShieldCheckIcon size={20} style={{ color }} />
+                </div>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-3xl font-bold text-white mb-1">{scoreData.score}</h3>
+                        <p className="text-xs text-zinc-500">Powered by FairScale</p>
+                    </div>
+                    <div
+                        className="px-3 py-1.5 rounded-full text-xs font-bold border"
+                        style={{
+                            backgroundColor: `${color}20`,
+                            borderColor: `${color}40`,
+                            color: color
+                        }}
+                    >
+                        {scoreData.tier}
+                    </div>
+                </div>
+            </motion.div>
         );
     }
 
     return (
-        <div className="p-6 bg-zinc-900/50 border border-white/10 rounded-2xl backdrop-blur-sm">
+        <div className="bg-zinc-900/40 backdrop-blur-md border border-white/10 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
                 <div>
                     <h3 className="text-sm font-bold text-white mb-1">Trust Score</h3>
