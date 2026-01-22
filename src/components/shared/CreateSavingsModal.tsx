@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { XIcon, PlusIcon, CoinsIcon, CalendarIcon } from '@phosphor-icons/react';
+import { XIcon, PlusIcon, CoinsIcon, CalendarIcon, ShieldCheckIcon } from '@phosphor-icons/react';
 
 interface CreateSavingsModalProps {
     isOpen: boolean;
@@ -83,6 +83,20 @@ export default function CreateSavingsModal({ isOpen, onClose, onCreate, isLoadin
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Score Boost Preview */}
+                                    <div className="mt-4 p-4 bg-orange-500/5 border border-orange-500/20 rounded-2xl flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <ShieldCheckIcon size={20} className="text-orange-500" weight="fill" />
+                                            <span className="text-sm font-bold text-white">Reputation Boost</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-lg font-black text-orange-400">
+                                                +{parseInt(duration) >= 12 ? '12' : parseInt(duration) >= 6 ? '8' : parseInt(duration) >= 3 ? '5' : '4'} Points
+                                            </span>
+                                        </div>
+                                    </div>
+
                                     <p className="text-xs text-orange-400/60 mt-2">
                                         🔒 Funds will be locked until the duration is complete.
                                     </p>

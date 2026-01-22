@@ -3,14 +3,14 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLazorkit } from '@/hooks/useLazorkit';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     HouseIcon, UserCircleIcon, CreditCardIcon, PlusIcon, LinkIcon,
     ReceiptIcon, KeyIcon, SignOutIcon, CopyIcon, ArrowRightIcon, WalletIcon,
     CaretRightIcon, ListIcon, XIcon, CurrencyDollarIcon, ArrowUpIcon, ArrowDownIcon,
     StorefrontIcon, CaretDownIcon, CoinsIcon, PiggyBankIcon,
-    PaperPlaneTiltIcon
+    PaperPlaneTiltIcon, LightningIcon
 } from '@phosphor-icons/react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import LogoField from '@/components/shared/LogoField';
@@ -82,6 +82,34 @@ export default function Dashboard() {
         };
         fetchScore();
     }, [address]);
+
+    // Calculate CadPay Reputation Boost based on Savings Behavior
+    const cadPayBoost = useMemo(() => {
+        if (!pots || pots.length === 0) return 0;
+
+        let totalBoost = 0;
+        pots.forEach(pot => {
+            // Base boost for active commitment
+            totalBoost += 2;
+
+            // Duration bonus
+            const unlockTime = pot.unlockTime || 0;
+            const createdAt = pot.createdAt || Date.now() - (30 * 24 * 60 * 60 * 1000); // fallback 1 month
+            const durationMonths = Math.max(1, Math.round((unlockTime * 1000 - createdAt) / (1000 * 60 * 60 * 24 * 30)));
+
+            const durationMultiplier = durationMonths >= 12 ? 5 : durationMonths >= 6 ? 3 : durationMonths >= 3 ? 1.5 : 1;
+            totalBoost += durationMultiplier * 2;
+
+            // Balance bonus (1 point per 10 USDC saved)
+            if (pot.balance > 0) {
+                totalBoost += (pot.balance / 10);
+            }
+        });
+
+        return Math.min(30, Math.round(totalBoost)); // Cap local boost at +30 points
+    }, [pots]);
+
+    const finalTrustScore = Math.min(100, userTrustScore + cadPayBoost);
 
     const handleUnifiedSend = async (recipient: string, amount: number, isSavings: boolean, memo?: string) => {
         if (!address || !signAndSendTransaction) {
@@ -582,11 +610,11 @@ export default function Dashboard() {
                             loading={loading}
                             copyToClipboard={copyToClipboard}
                             onOpenSend={() => setShowSendModal(true)}
-                            userTrustScore={userTrustScore}
+                            userTrustScore={finalTrustScore}
                         />
                     )}
 
-                    {activeSection === 'subscriptions' && <SubscriptionsSection usdcBalance={usdcBalance} refetchUsdc={refetchUsdc} userTrustScore={userTrustScore} />}
+                    {activeSection === 'subscriptions' && <SubscriptionsSection usdcBalance={usdcBalance} refetchUsdc={refetchUsdc} userTrustScore={finalTrustScore} />}
 
                     {activeSection === 'wallet' && <WalletSection
                         balance={displayBalance}
@@ -628,6 +656,27 @@ export default function Dashboard() {
                 balance={balance || 0}
                 usdcBalance={usdcBalance}
             />
+
+            {/* Global Score Boost Alert - Only if boost > 0 */}
+            <AnimatePresence>
+                {cadPayBoost > 0 && activeSection === 'overview' && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="fixed bottom-8 right-8 z-60"
+                    >
+                        <div className="bg-orange-500/10 backdrop-blur-md border border-orange-500/20 rounded-2xl p-4 flex items-center gap-4 shadow-2xl">
+                            <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-orange-500/40">
+                                <LightningIcon size={24} weight="fill" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-orange-200/60 font-bold uppercase tracking-wider">CadPay Rep Boost</p>
+                                <p className="text-lg font-bold text-white">+{cadPayBoost} Score Bonus</p>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
@@ -897,8 +946,8 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
                     </div>
                 </motion.div>
 
-                {/* Quick Stats & Savings (Only show if pots exist) */}
                 <div className="space-y-4">
+                    <TrustScore score={userTrustScore} isLoading={loading} />
                     <ReputationLevel score={userTrustScore} />
                     <StatCard title="Active Subscriptions" value={subscriptions.length.toString()} color="blue" />
 
@@ -1197,6 +1246,10 @@ function SubscriptionsSection({ usdcBalance, refetchUsdc, userTrustScore }: { us
         return s.category === categoryFilter;
     });
 
+    const disneyIndex = filteredServices.findIndex(s => s.id === 'disney');
+    const beforeDisney = disneyIndex !== -1 ? filteredServices.slice(0, disneyIndex + 1) : filteredServices;
+    const afterDisney = disneyIndex !== -1 ? filteredServices.slice(disneyIndex + 1) : [];
+
     return (
         <div className="space-y-8">
             {/* Header with Tabs */}
@@ -1275,15 +1328,15 @@ function SubscriptionsSection({ usdcBalance, refetchUsdc, userTrustScore }: { us
                             />
                         </div>
 
-                        {/* Service Cards Grid - Mobile: 2 cols, Desktop: 2 cols */}
+                        {/* Top Service Cards Grid (Up to Disney+) */}
                         <div className="grid grid-cols-2 gap-3 md:gap-4">
-                            {filteredServices.map(service => {
+                            {beforeDisney.map(service => {
                                 const isLocked = (service.minimumTrustScore || 0) > userTrustScore;
                                 return (
                                     <ServiceCard
                                         key={service.id}
                                         service={service}
-                                        onClick={() => handleServiceClick(service)} // Modal handles internal plan locking, but we pass isLocked for visual
+                                        onClick={() => handleServiceClick(service)}
                                         isLocked={isLocked}
                                     />
                                 );
@@ -1361,6 +1414,25 @@ function SubscriptionsSection({ usdcBalance, refetchUsdc, userTrustScore }: { us
                             </div>
                         </div>
                     </div>
+
+                    {/* Full-width Services Grid - Rendered after the Sidebar in the same grid container */}
+                    {afterDisney.length > 0 && (
+                        <div className="lg:col-span-3">
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mt-4">
+                                {afterDisney.map(service => {
+                                    const isLocked = (service.minimumTrustScore || 0) > userTrustScore;
+                                    return (
+                                        <ServiceCard
+                                            key={service.id}
+                                            service={service}
+                                            onClick={() => handleServiceClick(service)}
+                                            isLocked={isLocked}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

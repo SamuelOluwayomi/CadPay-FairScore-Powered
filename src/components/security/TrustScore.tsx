@@ -6,15 +6,29 @@ import { ShieldCheckIcon } from '@phosphor-icons/react';
 import { getFairScore, getScoreColor, FairScoreResponse } from '@/services/fairscale';
 
 interface TrustScoreProps {
-    walletAddress: string;
+    walletAddress?: string;
     compact?: boolean;
+    score?: number;
+    isLoading?: boolean;
 }
 
-export default function TrustScore({ walletAddress, compact = false }: TrustScoreProps) {
-    const [scoreData, setScoreData] = useState<FairScoreResponse | null>(null);
-    const [loading, setLoading] = useState(true);
+export default function TrustScore({ walletAddress, compact = false, score, isLoading: externalLoading }: TrustScoreProps) {
+    const [scoreData, setScoreData] = useState<FairScoreResponse | null>(score ? { walletAddress: '', score, tier: 'LOW', lastUpdated: '' } : null);
+    const [loading, setLoading] = useState(externalLoading ?? !score);
 
     useEffect(() => {
+        if (score !== undefined) {
+            const tier = score >= 70 ? 'HIGH' : score >= 40 ? 'MEDIUM' : 'LOW';
+            setScoreData({
+                walletAddress: walletAddress || '',
+                score,
+                tier,
+                lastUpdated: new Date().toISOString()
+            });
+            setLoading(externalLoading ?? false);
+            return;
+        }
+
         let mounted = true;
 
         const fetchScore = async () => {

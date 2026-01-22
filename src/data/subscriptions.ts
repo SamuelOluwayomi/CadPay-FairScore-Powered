@@ -49,7 +49,8 @@ export const SERVICES: Service[] = [
         plans: [
             { name: 'Free', price: 0, features: ['Ads', 'Shuffle play', 'Limited skips'] },
             { name: 'Premium', price: 10.99, features: ['Ad-free', 'Download', 'High quality'] },
-            { name: 'Family', price: 16.99, features: ['6 accounts', 'Kid profiles', 'Ad-free'] }
+            { name: 'Family', price: 16.99, features: ['6 accounts', 'Kid profiles', 'Ad-free'] },
+            { name: 'Elite', price: 24.99, features: ['Hi-Fi Audio', 'Exclusive Content', 'Early Access'], minimumScore: 75 }
         ]
     },
     {
@@ -61,7 +62,8 @@ export const SERVICES: Service[] = [
         description: 'Ad-free videos and music',
         plans: [
             { name: 'Individual', price: 13.99, features: ['Ad-free', 'Background play', 'Downloads'] },
-            { name: 'Family', price: 22.99, features: ['5 members', 'YouTube Music', 'Ad-free'] }
+            { name: 'Family', price: 22.99, features: ['5 members', 'YouTube Music', 'Ad-free'] },
+            { name: 'Creator', price: 29.99, features: ['Creator Bundles', 'Merch Discounts', 'VIP Support'], minimumScore: 85 }
         ]
     },
     {
@@ -73,7 +75,8 @@ export const SERVICES: Service[] = [
         description: 'Disney, Pixar, Marvel & more',
         plans: [
             { name: 'Basic', price: 7.99, features: ['With ads', '1080p', 'Download'] },
-            { name: 'Premium', price: 13.99, features: ['No ads', '4K UHD', '4 streams'] }
+            { name: 'Premium', price: 13.99, features: ['No ads', '4K UHD', '4 streams'] },
+            { name: 'Founder', price: 19.99, features: ['Exclusive Sneak Peeks', 'Park Discounts', 'Early Releases'], minimumScore: 90 }
         ]
     },
     {
@@ -85,7 +88,8 @@ export const SERVICES: Service[] = [
         description: 'Free shipping + streaming',
         plans: [
             { name: 'Monthly', price: 14.99, features: ['Free shipping', 'Prime Video', 'Prime Music'] },
-            { name: 'Annual', price: 139, features: ['All benefits', 'Save $40/year'] }
+            { name: 'Annual', price: 139, features: ['All benefits', 'Save $40/year'] },
+            { name: 'Business', price: 199, features: ['Dedicated Support', 'Bulk Ordering', 'Employee Benefits'], minimumScore: 70 }
         ]
     },
     {
