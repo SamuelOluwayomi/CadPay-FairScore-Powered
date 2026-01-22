@@ -27,11 +27,22 @@ export default function MerchantAuthPage() {
         setError('');
 
         try {
-            // 0. Check for Demo Login (Bypass Wallet)
+            // ADMIN LOGIN: Check for demo credentials FIRST (bypass wallet entirely)
             const isDemoLogin = email === 'demo@cadpay.xyz' && !isSignup;
 
-            // 1. Ensure Wallet Connection first (if not demo)
-            if (!isDemoLogin && (!isAuthenticated || !address)) {
+            if (isDemoLogin) {
+                // Admin login - no wallet needed
+                const success = await loginMerchant(email, password);
+                if (!success) {
+                    throw new Error("Invalid admin credentials");
+                }
+                // Redirect to merchant dashboard
+                router.push('/merchant');
+                return; // Early return - skip wallet connection
+            }
+
+            // REGULAR MERCHANT: Ensure wallet connection for non-admin accounts
+            if (!isAuthenticated || !address) {
                 if (isSignup) {
                     await createPasskeyWallet(null); // null = do not redirect
                 } else {

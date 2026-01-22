@@ -30,9 +30,10 @@ This project fulfills the [FairScale Solana Build Bounty](https://earn.superteam
 - **CadPay Reputation Boost** - Earn additional trust score points based on savings behavior
   - Base boost: +2 points per active savings pot
   - Duration multiplier: Extra points for long-term commitments (3, 6, 12+ months)
-  - Balance bonus: +1 point per 10 USDC saved
+  - **Deposit tier bonuses**: 💎 Platinum (500+ USDC) = +15pts, 🏆 Gold (200-499) = +10pts, 🥈 Silver (50-199) = +5pts, 🥉 Bronze (1-49) = +2pts
   - Maximum boost: +30 points (capped)
 - **Visual Score Display** - Real-time trust score with color-coded tiers
+- **Deposit Tier Carousel** - View your active deposit tiers and bonuses
 - **Auto-dismissing Boost Notifications** - Instant feedback when reputation increases
 
 ## 🛠️ Tech Stack
@@ -79,7 +80,7 @@ NEXT_PUBLIC_RPC_URL=https://api.devnet.solana.com
 NEXT_PUBLIC_SOLANA_NETWORK=devnet
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Optional: Treasury for private faucet (Sybil protection)
+# REQUIRED: Treasury for automated account funding (bypasses FairScale for system operations)
 TREASURY_SECRET_KEY=your_treasury_secret_key
 
 # Optional: Address Lookup Table for transaction compression
@@ -91,6 +92,9 @@ NEXT_PUBLIC_LOOKUP_TABLE_ADDRESS=your_alt_address_here
 2. Create a new app
 3. Copy your App ID and Public Key
 4. Add them to your `.env.local`
+
+**Setting up Treasury:**
+The treasury wallet is used for automated funding operations (profile creation, ATA creation) that bypass FairScale trust checks. Generate a new Solana keypair and fund it with devnet SOL.
 
 ### 3. Run Development Server
 
@@ -107,121 +111,145 @@ npm run build
 npm start
 ```
 
-## 📱 Using CadPay
+## 📱 Complete Feature Guide
 
-### First-Time User Flow
+### 1. User Features (Dashboard)
 
-1. **Create Account**
-   - Click "Create Account" in the navbar
-   - Follow the passkey creation flow (Face ID/Touch ID/Windows Hello)
-   - Your smart wallet is created instantly (no seed phrases!)
+#### Creating Your Account
+1. Click "Create Account" on homepage
+2. Follow the passkey creation flow (Face ID/Touch ID/Windows Hello)
+3. Your smart wallet is created instantly (no seed phrases!)
+4. Complete onboarding: username, avatar emoji, 4-digit PIN
+5. Profile stored on-chain via Anchor program
 
-2. **Complete Onboarding**
-   - Set your username, avatar emoji, and 4-digit PIN
-   - Your profile is stored on-chain via Anchor program
+#### Getting USDC
+**Method 1: Faucet (Trust Score ≥ 40 Required)**
+1. Navigate to "Wallet & Cards"
+2. Click "Get Free USDC"
+3. Mints 50 USDC to your account
+4. FairScale check prevents Sybil attacks
 
-3. **Fund Your Wallet**
-   - Navigate to "Wallet & Cards" section
-   - Click "Get Free USDC" to mint 50 USDC from the faucet
-   - FairScale trust score determines eligibility (≥40 required for faucet)
+**Method 2: Manual Transfer**
+- Send USDC from another wallet to your smart wallet address
+- Address visible in Overview section
 
-4. **Subscribe to Services**
-   - Go to "My Subscriptions"
-   - Browse available services (Netflix, Spotify, etc.)
-   - Click "Subscribe" and select a plan
-   - Confirm the transaction with your passkey
+#### Managing Subscriptions
+1. **Browse Services**: Go to "My Subscriptions" → "Browse" tab
+2. **Filter by Category**: Use dropdown to filter Entertainment, Productivity, etc.
+3. **Subscribe**:
+   - Click service card
+   - Select plan (Monthly/Annual)
+   - Review details
+   - Confirm with passkey
+4. **View Active**: Check "Active" tab to see current subscriptions
+5. **Analytics**: View spending breakdown by service
 
-5. **Create Savings Pots** (Optional)
-   - Navigate to "Savings Wallet"
-   - Click "Create New Pot"
-   - Set pot name, unlock date, and initial deposit
-   - Track your savings and earn reputation boosts
+#### Savings Pots (Earn Reputation!)
+**Creating a Pot:**
+1. Go to "Savings Wallet"
+2. Click "Create New Pot"
+3. Enter:
+   - Pot name
+   - Unlock date (time-locked)
+   - Initial deposit amount
+4. Confirm transaction
+5. **Earn deposit tier bonus** based on amount!
 
-6. **Send USDC** (Optional)
-   - Click "Send" from Overview or Wallet sections
-   - Enter recipient address and amount
-   - Add optional memo (up to 50 characters)
-   - Choose between regular transfer or savings pot deposit
+**Depositing to Pot:**
+1. Click "Send" button
+2. Toggle "Savings Pot" option
+3. Select pot from dropdown
+4. Enter amount
+5. Optional: Add memo (max 20 chars for savings)
+6. **Your reputation score updates automatically!**
 
-### Merchant Portal
+**Deposit Tier Bonuses:**
+- 💎 **Platinum**: Deposit 500+ USDC → +15 reputation points
+- 🏆 **Gold**: Deposit 200-499 USDC → +10 points
+- 🥈 **Silver**: Deposit 50-199 USDC → +5 points
+- 🥉 **Bronze**: Deposit 1-49 USDC → +2 points
 
-Merchants can manage subscriptions and view analytics.
+**View Tiers:**
+- Overview carousel (slide 3) shows all your active tiers
+- See total bonus from all deposits
+- Track progress to next tier
 
+#### Sending USDC
+1. Click "Send" from Overview or Wallet section
+2. Enter recipient Solana address
+3. Enter amount
+4. Add optional memo (max 50 chars)
+5. Choose "Transfer" (not savings)
+6. Confirm with passkey
+
+#### Viewing Your Reputation
+- **Trust Score Card**: Shows FairScale base score + CadPay boost
+- **Reputation Level**: Visual tier indicator (Bronze → Platinum)
+- **Deposit Tiers**: Carousel slide showing active tier bonuses
+- **Boost Notifications**: Auto-appear when your score increases
+
+### 2. Merchant Features
+
+#### Admin Access (No Wallet Required!)
 **Demo Login Credentials:**
-- **Email:** `demo@cadpay.xyz`
-- **Password:** `admin123`
+- Email: `demo@cadpay.xyz`
+- Password: `admin123`
+- **No Lazorkit popup** - bypasses wallet authentication
+- Pre-loaded with demo transaction data
 
-**Merchant Features:**
-- Live transaction ledger with service names from memos
-- Total revenue and MRR calculations based on actual transfer amounts
-- Revenue split chart by unique subscription services
-- Customer count (unique wallet addresses)
-- FairScale trust gate toggle for individual services
+**What You Can Do:**
+1. **View Live Transactions**: Real-time ledger of all payments
+2. **Revenue Analytics**:
+   - Total revenue (from actual transfer amounts)
+   - MRR calculation based on subscriptions
+   - Revenue split chart by service
+3. **Customer Metrics**: Count unique wallet addresses
+4. **Service Management**: View which services have FairScale trust gates
 
-## 🎮 FairScale Integration Demo
+#### Creating Merchant Account (With Wallet)
+For non-demo merchants who want their own wallet:
+1. Go to `/merchant-auth`
+2. Click "Create Account" tab
+3. Enter business name, email, password
+4. **Lazorkit popup appears** - create passkey wallet
+5. Account created with associated wallet
+6. Can receive payments to wallet address
 
-### Sybil Guard Flow (User Side):
+### 3. FairScale Integration
 
-1. **Create Wallet** - Generate passkey-based wallet
-2. **Check Trust Score** - FairScale mock service returns deterministic score based on wallet address
-3. **Request Funding** - Low-score wallets (<40) are rejected with clear error message
-4. **High-Score Success** - Trusted wallets (≥40) receive 50 USDC from demo minting function
+#### How Trust Scoring Works
+**Base Score (FairScale Mock):**
+- Wallet address generates deterministic score (0-100)
+- Mock implementation for demo purposes
+- Ready to swap for live API
 
-### Trust Score Boost (Savings Feature):
+**CadPay Boost (Your Actions):**
+- Active savings pots: +2pts each
+- Duration multiplier: 1-5x based on lock period
+- **Deposit tiers: +2 to +15pts based on amount**
+- Total boost capped at +30pts
 
-1. **Create Savings Pot** - Set up time-locked USDC savings
-2. **Automatic Boost** - CadPay calculates bonus reputation points:
-   - Active commitment: +2 points per pot
-   - Duration multiplier: 1x (3mo), 1.5x (6mo), 3x (12mo+)
-   - Balance bonus: +1 per 10 USDC
-3. **Visual Feedback** - Auto-dismissing notification shows boost amount
-4. **Updated Score** - Final trust score = FairScale base + CadPay boost (max +30)
-
-### Merchant Trust Gates:
-
-1. Navigate to **Merchant Portal** (`/merchant-auth` → `/merchant`)
-2. View services with "FairScale Trust Gate" indicator
-3. Users below minimum score threshold cannot subscribe
-4. Clear error messages guide low-score users
-
-## 📁 Project Structure
-
+**Final Score:**
 ```
-src/
-├── app/
-│   ├── api/
-│   │   ├── fairscale/      # FairScale score endpoint
-│   │   ├── faucet/         # Token minting with trust check
-│   │   └── fund-rent/      # Account rent funding
-│   ├── dashboard/          # Main user dashboard
-│   ├── merchant/           # Merchant analytics portal
-│   └── create/             # Wallet creation flow
-├── components/
-│   ├── security/           # TrustScore, ReputationLevel widgets
-│   ├── subscriptions/      # Service cards, subscription management
-│   └── shared/             # Modals, forms, reusable UI
-├── hooks/
-│   ├── useLazorkit.ts      # Wallet connection & transactions
-│   ├── useUSDCBalance.ts   # Real-time balance tracking
-│   ├── useSubscriptions.ts # Subscription state management
-│   └── useUserProfile.ts   # On-chain profile interaction
-├── services/
-│   └── fairscale.ts        # FairScale API integration (mock)
-├── utils/
-│   ├── cadpayToken.ts      # USDC minting & transfer logic
-│   ├── savingsAccounts.ts  # Savings pot PDA derivation
-│   └── rpc.ts              # Connection retry mechanism
-└── context/                # React contexts for global state
+Final Score = min(100, FairScale Base + CadPay Boost)
 ```
+
+#### Trust Score Applications
+1. **Faucet Access**: Need ≥40 to mint USDC
+2. **Merchant Gates**: Services can require minimum scores
+3. **Visual Feedback**: Color-coded tiers (Red/Orange/Green)
 
 ## 🔧 Recent Updates & Fixes
 
 ### January 2026
 - ✅ **Updated @solana/spl-token** from v0.1.8 to v0.4.9 (fixed build errors)
 - ✅ **Added missing SPL token imports** in dashboard page
-- ✅ **Improved transaction size optimization** for smart wallets
-- ✅ **Enhanced savings pot validation** with better error messages
-- ✅ **Fixed build compatibility** with Next.js 16 Turbopack
+- ✅ **Profile creation** - uses `/api/fund-rent` (bypasses FairScale for system operations)
+- ✅ **Fixed TransactionTooOld** - pass instructions directly to Lazorkit for fresh blockhash
+- ✅ **Fixed Transaction too large** - treasury creates ATAs via `/api/create-ata`
+- ✅ **Deposit tier spacing** - tightened UI padding/margins
+- ✅ **Admin merchant login** - bypasses Lazorkit popup for demo account
+- ✅ **Deposit-based reputation tiers** - earn points based on savings amounts
 
 ## 🔄 FairScale Code Reference
 
@@ -258,12 +286,20 @@ if (scoreData.score < MINIMUM_FAUCET_SCORE) {
 }
 ```
 
-### Trust Score UI (`src/components/security/TrustScore.tsx`)
+### Deposit Tier Calculation (`src/app/dashboard/page.tsx`)
 
-Circular progress indicator with color-coded tiers:
-- **High (70+)** - Green (#10B981)
-- **Medium (40-69)** - Orange (#F97316)
-- **Low (<40)** - Red (#EF4444)
+```typescript
+// Tiered Deposit Bonus - Earn more points for larger deposits
+if (pot.balance >= 500) {
+    depositBonus = 15; // Platinum
+} else if (pot.balance >= 200) {
+    depositBonus = 10; // Gold
+} else if (pot.balance >= 50) {
+    depositBonus = 5; // Silver
+} else if (pot.balance >= 1) {
+    depositBonus = 2; // Bronze
+}
+```
 
 ## 🌐 Live Demo
 
@@ -274,8 +310,9 @@ Circular progress indicator with color-coded tiers:
 2. Check your auto-assigned FairScale mock score
 3. Try minting USDC (score ≥40 required)
 4. Subscribe to demo services
-5. Create savings pots to boost your reputation
-6. Access merchant portal to view analytics
+5. **Create savings pots to boost your reputation**
+6. **Watch your deposit tier bonuses accumulate**
+7. Access merchant portal with demo credentials (no wallet needed!)
 
 ## 🏆 Bounty Requirements Met
 
@@ -283,7 +320,8 @@ Circular progress indicator with color-coded tiers:
 - ✅ Sybil attack prevention on faucet endpoint
 - ✅ Merchant-level trust requirements for services
 - ✅ Visual trust score display with tier indicators
-- ✅ CadPay reputation boost for savings behavior
+- ✅ **CadPay reputation boost for savings behavior**
+- ✅ **Deposit-based tier bonuses (Bronze → Platinum)**
 - ✅ Mock service ready for live API credentials
 - ✅ Clean, well-documented codebase
 - ✅ Live demo deployed on Devnet
@@ -331,17 +369,48 @@ FAIRSCALE_API_KEY=your_live_api_key_here
 
 ### Runtime Errors
 
-**Issue:** "Transaction too large" errors
-- **Cause:** Smart wallet wrapper instructions + memo exceeding size limit
-- **Fix:** Keep memos under 20 characters for savings, 50 for transfers
+**Issue:** "TransactionTooOld" errors
+- **Cause:** Blocker expired during biometric authentication
+- **Fix:** ✅ Already fixed - instructions passed directly to Lazorkit
 
-**Issue:** "Account not found" after creating savings pot
-- **Cause:** Transaction confirmation delay
-- **Fix:** Wait 2-3 seconds before depositing to new pots
+**Issue:** "Transaction too large" errors
+- **Cause:** Smart wallet wrapper exceeds 1232-byte limit
+- **Fix:** ✅ Already fixed - treasury creates ATAs via `/api/create-ata`
+
+**Issue:** Profile creation fails with trust score error
+- **Fix:** ✅ Already fixed - uses `/api/fund-rent` which bypasses FairScale
 
 **Issue:** Balance not updating immediately
 - **Cause:** RPC propagation delay
 - **Fix:** Auto-refresh is enabled; wait 2-3 seconds
+
+**Issue:** Lazorkit popup on merchant login
+- **Fix:** ✅ Already fixed - use `demo@cadpay.xyz` to bypass wallet
+
+## 📚 API Endpoints
+
+### `/api/faucet` (POST)
+- **Purpose**: Mint USDC to user wallet
+- **FairScale Protection**: Requires score ≥ 40
+- **Body**: `{ userAddress: string }`
+- **Response**: `{ signature: string }`
+
+### `/api/fund-rent` (POST)
+- **Purpose**: Fund SOL for account rent (bypasses FairScale)
+- **Use Case**: Profile creation, wallet funding
+- **Body**: `{ accountAddress: string, rentAmount?: number }`
+- **Response**: `{ success: true, signature: string }`
+
+### `/api/create-ata` (POST)
+- **Purpose**: Create Associated Token Accounts (bypasses transaction size limit)
+- **Use Case**: Savings pot initialization
+- **Body**: `{ ownerAddress: string, mintAddress: string }`
+- **Response**: `{ success: true, ataAddress: string, signature: string }`
+
+### `/api/fairscale/score` (GET)
+- **Purpose**: Get FairScale trust score for wallet
+- **Query**: `?walletAddress=...`
+- **Response**: `{ score: number, tier: string, walletAddress: string }`
 
 ## 🐦 Connect
 
