@@ -136,31 +136,42 @@ export function useUserProfile() {
     const checkAndAirdrop = async (address: anchor.web3.PublicKey) => {
         try {
             const balance = await connection.getBalance(address);
-            if (balance < 0.05 * anchor.web3.LAMPORTS_PER_SOL) {
-                console.log("Requesting seed SOL from private treasury for:", address.toString());
+            // Need roughly 0.00139 SOL for profile account rent (1,392,000 lamports)
+            const requiredBalance = 0.002 * anchor.web3.LAMPORTS_PER_SOL; // 0.002 SOL buffer
 
-                const response = await fetch('/api/faucet', {
+            if (balance < requiredBalance) {
+                console.log("Requesting account rent funding from treasury for:", address.toString());
+
+                // Use fund-rent endpoint which bypasses FairScale trust score check
+                // This is appropriate because profile creation rent is a one-time system cost,
+                // not a token airdrop that could be exploited by Sybil attackers
+                const response = await fetch('/api/fund-rent', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userAddress: address.toString() }),
+                    body: JSON.stringify({
+                        accountAddress: address.toString(),
+                        rentAmount: requiredBalance // Request exact amount needed
+                    }),
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || "Private faucet failed");
+                    throw new Error(errorData.error || "Account rent funding failed");
                 }
 
                 const data = await response.json();
-                console.log("Private funding successful, tx:", data.signature);
+                console.log("Account rent funding successful, tx:", data.signature);
 
                 // Short pause to let the network process the transfer
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
         } catch (err) {
-            console.warn("Private faucet error:", err);
+            console.warn("Account rent funding error:", err);
             if (err instanceof Error && err.message.includes("Treasury key missing")) {
-                console.error("⚠️ Developer Tip: Your private faucet is making things difficult! Add 'TREASURY_SECRET_KEY' to your .env.local to enable reliable automated onboarding.");
+                console.error("⚠️ Developer Tip: Add 'TREASURY_SECRET_KEY' to your .env.local to enable automated account rent funding for new users.");
             }
+            // Re-throw to prevent profile creation from continuing without funds
+            throw err;
         }
     };
 
@@ -343,7 +354,7 @@ export function useUserProfile() {
 
             const tx = new Transaction().add(instruction);
             tx.feePayer = userPubkey;
-            
+
             // Don't set blockhash manually - Lazorkit's signAndSendTransaction handles it
             // Setting it here can cause "TransactionTooOld" errors if there's any delay
             // Lazorkit will fetch a fresh blockhash when signing
