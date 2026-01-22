@@ -22,6 +22,7 @@ import SubscribeModal from '@/components/subscriptions/SubscribeModal';
 import ActiveSubscriptionCard from '@/components/subscriptions/ActiveSubscriptionCard';
 import SecuritySettings from '@/components/security/SecuritySettings';
 import TrustScore from '@/components/security/TrustScore';
+import ReputationLevel from '@/components/security/ReputationLevel';
 import FullProfileEditModal from '@/components/shared/FullProfileEditModal';
 import OnboardingModal from '@/components/shared/OnboardingModal';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
@@ -38,6 +39,7 @@ import { CADPAY_MINT } from '@/utils/cadpayToken';
 import { deriveSavingsPotPDA } from '@/utils/savingsAccounts';
 import idl from '../../../anchor/target/idl/cadpay_profiles.json';
 import { createMemoInstruction } from '@solana/spl-memo';
+import { getFairScore } from '@/services/fairscale';
 
 type NavSection = 'overview' | 'subscriptions' | 'wallet' | 'security' | 'payment-link' | 'invoices' | 'dev-keys' | 'savings';
 
@@ -61,12 +63,24 @@ export default function Dashboard() {
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [isOnboardingSubmitting, setIsOnboardingSubmitting] = useState(false);
     const [isProfileSaving, setIsProfileSaving] = useState(false);
+    const [userTrustScore, setUserTrustScore] = useState(0);
 
     // Explicitly log wallet address to console (User Request)
     useEffect(() => {
         if (address) {
             console.log("SMART WALLET ADDRESS:", address);
         }
+    }, [address]);
+
+    // Fetch Trust Score (Global for Dashboard)
+    useEffect(() => {
+        const fetchScore = async () => {
+            if (address) {
+                const scoreData = await getFairScore(address);
+                setUserTrustScore(scoreData.score);
+            }
+        };
+        fetchScore();
     }, [address]);
 
     const handleUnifiedSend = async (recipient: string, amount: number, isSavings: boolean, memo?: string) => {
@@ -568,10 +582,11 @@ export default function Dashboard() {
                             loading={loading}
                             copyToClipboard={copyToClipboard}
                             onOpenSend={() => setShowSendModal(true)}
+                            userTrustScore={userTrustScore}
                         />
                     )}
 
-                    {activeSection === 'subscriptions' && <SubscriptionsSection usdcBalance={usdcBalance} refetchUsdc={refetchUsdc} />}
+                    {activeSection === 'subscriptions' && <SubscriptionsSection usdcBalance={usdcBalance} refetchUsdc={refetchUsdc} userTrustScore={userTrustScore} />}
 
                     {activeSection === 'wallet' && <WalletSection
                         balance={displayBalance}
@@ -695,7 +710,7 @@ function NavItem({ icon, label, active, onClick }: any) {
 }
 
 // Overview Section
-function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc, loading, copyToClipboard, onOpenSend }: any) {
+function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc, loading, copyToClipboard, onOpenSend, userTrustScore }: any) {
     const [showUSD, setShowUSD] = useState(true);
     const [solPrice, setSolPrice] = useState<number | null>(null);
     const [transactions, setTransactions] = useState<any[]>([]);
@@ -884,7 +899,7 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
 
                 {/* Quick Stats & Savings (Only show if pots exist) */}
                 <div className="space-y-4">
-                    <TrustScore walletAddress={address} />
+                    <ReputationLevel score={userTrustScore} />
                     <StatCard title="Active Subscriptions" value={subscriptions.length.toString()} color="blue" />
 
                     {pots.length > 0 && (
@@ -1016,7 +1031,7 @@ function StatCard({ title, value, color }: { title: string; value: string; color
 }
 
 // Subscriptions Section
-function SubscriptionsSection({ usdcBalance, refetchUsdc }: { usdcBalance: number, refetchUsdc: () => void }) {
+function SubscriptionsSection({ usdcBalance, refetchUsdc, userTrustScore }: { usdcBalance: number, refetchUsdc: () => void, userTrustScore: number }) {
     const [activeTab, setActiveTab] = useState<'browse' | 'active' | 'analytics'>('browse');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -1046,6 +1061,7 @@ function SubscriptionsSection({ usdcBalance, refetchUsdc }: { usdcBalance: numbe
                 color: ds.color,
                 category: 'other' as const, // Default category
                 features: ['Unified Billing', 'Gasless Payments', 'Instant Access'],
+                minimumTrustScore: ds.minimumTrustScore,
                 plans: [{
                     name: 'Standard',
                     price: ds.price,
@@ -1078,6 +1094,8 @@ function SubscriptionsSection({ usdcBalance, refetchUsdc }: { usdcBalance: numbe
         const interval = setInterval(fetchPrice, 60000);
         return () => clearInterval(interval);
     }, []);
+
+
 
     const handleServiceClick = (service: Service) => {
         setSelectedService(service);
@@ -1259,13 +1277,17 @@ function SubscriptionsSection({ usdcBalance, refetchUsdc }: { usdcBalance: numbe
 
                         {/* Service Cards Grid - Mobile: 2 cols, Desktop: 2 cols */}
                         <div className="grid grid-cols-2 gap-3 md:gap-4">
-                            {filteredServices.map(service => (
-                                <ServiceCard
-                                    key={service.id}
-                                    service={service}
-                                    onClick={() => handleServiceClick(service)}
-                                />
-                            ))}
+                            {filteredServices.map(service => {
+                                const isLocked = (service.minimumTrustScore || 0) > userTrustScore;
+                                return (
+                                    <ServiceCard
+                                        key={service.id}
+                                        service={service}
+                                        onClick={() => handleServiceClick(service)} // Modal handles internal plan locking, but we pass isLocked for visual
+                                        isLocked={isLocked}
+                                    />
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -1492,6 +1514,7 @@ function SubscriptionsSection({ usdcBalance, refetchUsdc }: { usdcBalance: numbe
                 usdcBalance={usdcBalance}
                 solPrice={solPrice}
                 existingSubscriptions={subscriptions}
+                userTrustScore={userTrustScore}
             />
         </div>
     );

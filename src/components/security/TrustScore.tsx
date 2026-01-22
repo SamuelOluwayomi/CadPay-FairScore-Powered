@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheckIcon } from '@phosphor-icons/react';
-import { getMockFairScore, getScoreColor, FairScoreResponse } from '@/services/fairscale';
+import { getFairScore, getScoreColor, FairScoreResponse } from '@/services/fairscale';
 
 interface TrustScoreProps {
     walletAddress: string;
@@ -22,7 +22,7 @@ export default function TrustScore({ walletAddress, compact = false }: TrustScor
 
             setLoading(true);
             try {
-                const data = await getMockFairScore(walletAddress);
+                const data = await getFairScore(walletAddress);
                 if (mounted) {
                     setScoreData(data);
                 }

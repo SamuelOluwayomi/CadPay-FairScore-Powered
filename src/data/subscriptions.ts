@@ -10,6 +10,7 @@ export interface SubscriptionPlan {
     name: string;
     price: number;
     features: string[];
+    minimumScore?: number;
 }
 
 export interface Service {
@@ -20,6 +21,7 @@ export interface Service {
     icon: IconType;
     description: string;
     plans: SubscriptionPlan[];
+    minimumTrustScore?: number;
 }
 
 export const SERVICES: Service[] = [
@@ -33,7 +35,8 @@ export const SERVICES: Service[] = [
         plans: [
             { name: 'Basic', price: 9.99, features: ['720p', '1 screen', 'Unlimited content'] },
             { name: 'Standard', price: 15.49, features: ['1080p', '2 screens', 'Downloads'] },
-            { name: 'Premium', price: 19.99, features: ['4K+HDR', '4 screens', 'Spatial audio'] }
+            { name: 'Premium', price: 19.99, features: ['4K+HDR', '4 screens', 'Spatial audio'] },
+            { name: 'Elite', price: 29.99, features: ['8K Ultra', 'VIP Support', 'Early Access'], minimumScore: 80 }
         ]
     },
     {

@@ -10,7 +10,7 @@ export const MINIMUM_FAUCET_SCORE = 40;
 export const SCORE_TIER_HIGH = 70;
 export const SCORE_TIER_MEDIUM = 40;
 
-export async function getMockFairScore(walletAddress: string): Promise<FairScoreResponse> {
+export async function getFairScore(walletAddress: string): Promise<FairScoreResponse> {
     try {
         const response = await fetch(
             `/api/fairscale/score?wallet=${encodeURIComponent(walletAddress)}`
@@ -40,7 +40,7 @@ export async function getMockFairScore(walletAddress: string): Promise<FairScore
 
 export async function checkMinimumScore(walletAddress: string, minScore: number = MINIMUM_FAUCET_SCORE): Promise<boolean> {
     try {
-        const response = await getMockFairScore(walletAddress);
+        const response = await getFairScore(walletAddress);
         return response.score >= minScore;
     } catch (error) {
         console.error('Error checking minimum score:', error);

@@ -15,9 +15,10 @@ interface SubscribeModalProps {
     usdcBalance: number;
     solPrice: number | null;
     existingSubscriptions?: Array<{ serviceId: string; email: string }>;
+    userTrustScore?: number;
 }
 
-export default function SubscribeModal({ isOpen, onClose, service, onSubscribe, balance, usdcBalance, solPrice, existingSubscriptions = [] }: SubscribeModalProps) {
+export default function SubscribeModal({ isOpen, onClose, service, onSubscribe, balance, usdcBalance, solPrice, existingSubscriptions = [], userTrustScore = 0 }: SubscribeModalProps) {
     const [step, setStep] = useState<'plans' | 'email' | 'pin' | 'confirm' | 'loading' | 'success'>('plans');
     const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
     const [email, setEmail] = useState('');
@@ -121,47 +122,72 @@ export default function SubscribeModal({ isOpen, onClose, service, onSubscribe, 
                                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                                     <h3 className="text-lg font-bold text-white mb-4">Choose a Plan</h3>
                                     <div className="grid gap-4">
-                                        {service.plans.map((plan, idx) => (
-                                            <div
-                                                key={idx}
-                                                onClick={() => setSelectedPlan(plan)}
-                                                className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedPlan?.name === plan.name
-                                                    ? 'border-white/30 bg-white/5'
-                                                    : 'border-white/10 hover:border-white/20'
-                                                    }`}
-                                            >
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <div>
-                                                        <h4 className="text-lg font-bold text-white">{plan.name}</h4>
-                                                        <p className="text-2xl font-bold mt-1" style={{ color: service.color }}>
-                                                            ${plan.price}<span className="text-sm text-zinc-500">/month</span>
-                                                        </p>
-                                                        {solPrice && (
-                                                            <p className="text-xs text-zinc-500 mt-1">
-                                                                ≈ {(plan.price / solPrice).toFixed(4)} SOL
+                                        {service.plans.map((plan, idx) => {
+                                            const isLocked = (plan.minimumScore || service.minimumTrustScore || 0) > userTrustScore;
+                                            const reqScore = plan.minimumScore || service.minimumTrustScore || 0;
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    onClick={() => !isLocked && setSelectedPlan(plan)}
+                                                    className={`p-5 rounded-xl border-2 transition-all relative ${isLocked ? 'opacity-60 cursor-not-allowed border-zinc-700 bg-zinc-900/50' :
+                                                        selectedPlan?.name === plan.name
+                                                            ? 'border-white/30 bg-white/5 cursor-pointer'
+                                                            : 'border-white/10 hover:border-white/20 cursor-pointer'
+                                                        }`}
+                                                >
+                                                    {isLocked && (
+                                                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-zinc-800 px-2 py-1 rounded text-[10px] text-zinc-400 border border-zinc-700 z-10">
+                                                            <LockKeyIcon /> Requires FairScore {reqScore}+
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-start justify-between mb-3">
+                                                        <div>
+                                                            <h4 className="text-lg font-bold text-white flex items-center gap-2">
+                                                                {plan.name}
+                                                                {plan.minimumScore && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded border border-orange-500/30">ELITE</span>}
+                                                            </h4>
+                                                            <p className="text-2xl font-bold mt-1" style={{ color: isLocked ? '#71717a' : service.color }}>
+                                                                ${plan.price}<span className="text-sm text-zinc-500">/month</span>
                                                             </p>
-                                                        )}
+                                                            {solPrice && (
+                                                                <p className="text-xs text-zinc-500 mt-1">
+                                                                    ≈ {(plan.price / solPrice).toFixed(4)} SOL
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPlan?.name === plan.name
+                                                            ? 'border-white bg-white'
+                                                            : 'border-zinc-600'
+                                                            }`}>
+                                                            {selectedPlan?.name === plan.name && (
+                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: service.color }} />
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPlan?.name === plan.name
-                                                        ? 'border-white bg-white'
-                                                        : 'border-zinc-600'
-                                                        }`}>
-                                                        {selectedPlan?.name === plan.name && (
-                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: service.color }} />
-                                                        )}
-                                                    </div>
+                                                    <ul className="space-y-2">
+                                                        {plan.features.map((feature, i) => (
+                                                            <li key={i} className="flex items-center gap-2 text-sm text-zinc-400">
+                                                                <CheckIcon size={16} weight="bold" className={isLocked ? "text-zinc-600" : "text-green-400 shrink-0"} />
+                                                                {feature}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
                                                 </div>
-                                                <ul className="space-y-2">
-                                                    {plan.features.map((feature, i) => (
-                                                        <li key={i} className="flex items-center gap-2 text-sm text-zinc-400">
-                                                            <CheckIcon size={16} weight="bold" className="text-green-400 shrink-0" />
-                                                            {feature}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
+
+                                    {/* Upgrade Logic */}
+                                    {service.plans.some(p => (p.minimumScore || service.minimumTrustScore || 0) > userTrustScore) && (
+                                        <div className="mt-4 p-3 bg-zinc-800/50 rounded-lg flex items-center justify-between">
+                                            <span className="text-xs text-zinc-400">Unlock higher tiers by boosting your FairScore.</span>
+                                            <a href="https://app.fairscale.xyz" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-orange-400 hover:text-orange-300 flex items-center gap-1">
+                                                Upgrade Score <WarningIcon />
+                                            </a>
+                                        </div>
+                                    )}
+
                                     <button
                                         onClick={() => selectedPlan && setStep('email')}
                                         disabled={!selectedPlan}
