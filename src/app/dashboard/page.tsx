@@ -111,6 +111,25 @@ export default function Dashboard() {
 
     const finalTrustScore = Math.min(100, userTrustScore + cadPayBoost);
 
+    // Auto-dismiss boost notification
+    const [showBoostNotification, setShowBoostNotification] = useState(false);
+    const [previousBoost, setPreviousBoost] = useState(0);
+
+    useEffect(() => {
+        if (cadPayBoost > 0 && cadPayBoost !== previousBoost) {
+            setShowBoostNotification(true);
+            setPreviousBoost(cadPayBoost);
+
+            // Auto-dismiss after 5 seconds
+            const timer = setTimeout(() => {
+                setShowBoostNotification(false);
+            }, 5000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [cadPayBoost, previousBoost]);
+
+
     const handleUnifiedSend = async (recipient: string, amount: number, isSavings: boolean, memo?: string) => {
         if (!address || !signAndSendTransaction) {
             showToast("Wallet not connected", "error");
@@ -657,15 +676,24 @@ export default function Dashboard() {
                 usdcBalance={usdcBalance}
             />
 
-            {/* Global Score Boost Alert - Only if boost > 0 */}
+            {/* Global Score Boost Alert - Auto-dismiss after 5s */}
             <AnimatePresence>
-                {cadPayBoost > 0 && activeSection === 'overview' && (
+                {showBoostNotification && cadPayBoost > 0 && activeSection === 'overview' && (
                     <motion.div
                         initial={{ opacity: 0, y: 50 }}
                         animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 50 }}
                         className="fixed bottom-8 right-8 z-60"
                     >
-                        <div className="bg-orange-500/10 backdrop-blur-md border border-orange-500/20 rounded-2xl p-4 flex items-center gap-4 shadow-2xl">
+                        <div className="bg-orange-500/10 backdrop-blur-md border border-orange-500/20 rounded-2xl p-4 flex items-center gap-4 shadow-2xl relative">
+                            {/* Close Button */}
+                            <button
+                                onClick={() => setShowBoostNotification(false)}
+                                className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+                            >
+                                <XIcon size={14} />
+                            </button>
+
                             <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-orange-500/40">
                                 <LightningIcon size={24} weight="fill" />
                             </div>
@@ -886,12 +914,12 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 items-start">
                 {/* Balance Card */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="md:col-span-2 bg-linear-to-br from-orange-500/20 to-orange-600/10 backdrop-blur-md border border-orange-500/30 rounded-3xl p-8 relative overflow-hidden group"
+                    className="md:col-span-2 bg-linear-to-br from-orange-500/20 to-orange-600/10 backdrop-blur-md border border-orange-500/30 rounded-3xl p-6 md:p-8 relative overflow-hidden group max-h-96"
                 >
                     <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                         <CurrencyDollarIcon size={150} />
@@ -946,80 +974,111 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
                     </div>
                 </motion.div>
 
-                <div className="space-y-4">
-                    <TrustScore score={userTrustScore} isLoading={loading} />
-                    <ReputationLevel score={userTrustScore} />
-                    <StatCard title="Active Subscriptions" value={subscriptions.length.toString()} color="blue" />
+                {/* Auto-Rotating Carousel - Right Column */}
+                <RightColumnCarousel
+                    userTrustScore={userTrustScore}
+                    subscriptionsCount={subscriptions.length}
+                    pots={pots}
+                    address={address}
+                    wallet={wallet}
+                    connection={connection}
+                    signAndSendTransaction={signAndSendTransaction}
+                    fetchPots={fetchPots}
+                    refreshBalance={refreshBalance}
+                    refetchUsdc={refetchUsdc}
+                    showToast={showToast}
+                />
+            </div>
 
-                    {pots.length > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="bg-zinc-900/40 backdrop-blur-md border border-white/10 rounded-2xl p-5"
-                        >
-                            <p className="text-xs text-zinc-400 mb-3 flex items-center gap-2">
-                                <PiggyBankIcon size={16} className="text-orange-400" />
-                                Quick Save
-                            </p>
-                            <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-                                {pots.map((pot: any) => (
-                                    <button
-                                        key={pot.name}
-                                        onClick={async () => {
-                                            if (!address) return;
-                                            try {
-                                                const { AnchorProvider, Program, BN } = await import('@coral-xyz/anchor');
-                                                const { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } = await import('@solana/spl-token');
-                                                const { CADPAY_MINT } = await import('@/utils/cadpayToken');
-                                                const { deriveSavingsPotPDA } = await import('@/utils/savingsAccounts');
-                                                const idl = await import('@/../anchor/target/idl/cadpay_profiles.json');
+            {/* Tier Showcase Carousel */}
+            <div className="bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-3xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="text-lg font-bold text-white">Reputation Tiers</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Unlock perks as you save & grow</p>
+                    </div>
+                    <div className="px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full">
+                        <span className="text-xs font-bold text-orange-400">EARN UP TO +30 POINTS</span>
+                    </div>
+                </div>
 
-                                                const [potPda] = deriveSavingsPotPDA(new PublicKey(address), pot.name);
-                                                const userAta = await getAssociatedTokenAddress(CADPAY_MINT, new PublicKey(address), true);
-                                                const potAta = await getAssociatedTokenAddress(CADPAY_MINT, potPda, true);
+                {/* Horizontal Scrollable Tier Cards */}
+                <div className="overflow-x-auto pb-4 -mx-2 px-2 custom-scrollbar">
+                    <div className="flex gap-4 min-w-max">
+                        {/* Novice Tier */}
+                        <TierCard
+                            name="Novice"
+                            minScore={0}
+                            color="#71717a"
+                            icon="🛡️"
+                            perks={['Basic Access', 'Standard Subscriptions']}
+                            rankUp="Create your first Savings Pot"
+                            isCurrentTier={userTrustScore < 30}
+                        />
 
-                                                const provider = new AnchorProvider(connection, (wallet as any), {});
-                                                const program = new Program(idl as any, provider);
+                        {/* Verified Tier */}
+                        <TierCard
+                            name="Verified"
+                            minScore={30}
+                            color="#3b82f6"
+                            icon="⭐"
+                            perks={['Gasless Transactions', '5% Cashback', 'Priority Support']}
+                            rankUp="Lock 50 USDC for 6 months"
+                            isCurrentTier={userTrustScore >= 30 && userTrustScore < 60}
+                        />
 
-                                                // Quick save 1 USDC - ensure BN is created properly
-                                                const quickSaveAmount = 1 * 1_000_000; // 1 USDC in raw units
-                                                const quickSaveBN = new BN(quickSaveAmount.toString());
+                        {/* Trusted Tier */}
+                        <TierCard
+                            name="Trusted"
+                            minScore={60}
+                            color="#10b981"
+                            icon="🏆"
+                            perks={['Higher Limits', 'Premium Support', 'Exclusive Deals']}
+                            rankUp="Lock 100 USDC for 12 months"
+                            isCurrentTier={userTrustScore >= 60 && userTrustScore < 80}
+                        />
 
-                                                const tx = await program.methods
-                                                    .depositToPot(quickSaveBN)
-                                                    .accounts({
-                                                        savingsPot: potPda,
-                                                        user: new PublicKey(address),
-                                                        userAta: userAta,
-                                                        potAta: potAta,
-                                                        tokenProgram: TOKEN_PROGRAM_ID,
-                                                    })
-                                                    .transaction();
+                        {/* Elite Tier */}
+                        <TierCard
+                            name="Elite"
+                            minScore={80}
+                            color="#f59e0b"
+                            icon="👑"
+                            perks={['Zero Fees', 'Exclusive Drops', 'VIP Access']}
+                            rankUp="Maintain 3+ active pots"
+                            isCurrentTier={userTrustScore >= 80 && userTrustScore < 90}
+                        />
 
-                                                tx.feePayer = new PublicKey(address);
+                        {/* Legend Tier */}
+                        <TierCard
+                            name="Legend"
+                            minScore={90}
+                            color="#8b5cf6"
+                            icon="⚡"
+                            perks={['Governance Rights', 'VIP Concierge', 'Max Benefits']}
+                            rankUp="You've reached the top!"
+                            isCurrentTier={userTrustScore >= 90}
+                        />
+                    </div>
+                </div>
 
-                                                await signAndSendTransaction(tx);
-                                                fetchPots();
-                                                refreshBalance();
-                                                refetchUsdc();
-                                                showToast(`1 USDC saved to ${pot.name}`, 'success');
-                                            } catch (e) {
-                                                console.error("Quick transfer failed", e);
-                                                showToast("Quick save failed", "error");
-                                            }
-                                        }}
-                                        className="w-full flex items-center justify-between p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all group"
-                                    >
-                                        <span className="text-xs text-zinc-300 group-hover:text-white transition-colors">{pot.name}</span>
-                                        <div className="flex items-center gap-1">
-                                            <PlusIcon size={12} className="text-orange-400" weight="bold" />
-                                            <span className="text-[10px] font-bold text-orange-400"></span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
+                {/* How to Rank Up Guide */}
+                <div className="mt-6 p-4 bg-orange-500/5 border border-orange-500/20 rounded-2xl">
+                    <p className="text-sm font-bold text-white mb-2">💡 How to Rank Up</p>
+                    <ul className="text-xs text-zinc-300 space-y-1.5">
+                        <li className="flex items-start gap-2">
+                            <span className="text-orange-400 mt-0.5">•</span>
+                            <span><strong>Create Savings Pots</strong> with longer durations (+2 to +12 points per pot)</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-orange-400 mt-0.5">•</span>
+                            <span><strong>Deposit USDC</strong> into your pots (+1 point per 10 USDC)</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-orange-400 mt-0.5">•</span>
+                            <span><strong>Stay committed</strong> – longer lock = higher multiplier (12 months = 5x boost!)</span>
+                        </li>
+                    </ul>
                 </div>
             </div>
 
@@ -1075,6 +1134,194 @@ function StatCard({ title, value, color }: { title: string; value: string; color
         <div className={`bg-linear-to-br ${colors[color]} backdrop-blur-md border rounded-2xl p-5`}>
             <p className="text-xs text-zinc-400 mb-1">{title}</p>
             <p className="text-3xl font-bold">{value}</p>
+        </div>
+    );
+}
+
+function TierCard({ name, minScore, color, icon, perks, rankUp, isCurrentTier }: {
+    name: string;
+    minScore: number;
+    color: string;
+    icon: string;
+    perks: string[];
+    rankUp: string;
+    isCurrentTier: boolean;
+}) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`min-w-[280px] bg-zinc-900/40 backdrop-blur-md border rounded-2xl p-5 relative overflow-hidden ${isCurrentTier ? 'ring-2 ring-orange-500/50 border-orange-500/30' : 'border-white/10'
+                }`}
+        >
+            {/* Current Tier Badge */}
+            {isCurrentTier && (
+                <div className="absolute top-3 right-3 px-2 py-1 bg-orange-500/20 border border-orange-500/40 rounded-full">
+                    <span className="text-[10px] font-bold text-orange-400">CURRENT</span>
+                </div>
+            )}
+
+            {/* Glow Effect */}
+            <div
+                className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl opacity-20"
+                style={{ backgroundColor: color }}
+            />
+
+            {/* Tier Header */}
+            <div className="relative z-10 mb-4">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="text-3xl">{icon}</div>
+                    <div>
+                        <h4 className="text-lg font-bold text-white">{name}</h4>
+                        <p className="text-xs text-zinc-500">{minScore}+ Score</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Perks */}
+            <div className="relative z-10 mb-4">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Perks</p>
+                <div className="space-y-1.5">
+                    {perks.map((perk, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                            <div className="w-1 h-1 rounded-full bg-zinc-600" />
+                            <span className="text-xs text-zinc-300">{perk}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Rank Up */}
+            <div className="relative z-10 p-3 bg-white/5 border border-white/10 rounded-xl">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Next Step</p>
+                <p className="text-xs text-white font-medium">{rankUp}</p>
+            </div>
+        </motion.div>
+    );
+}
+
+
+// Right Column Carousel with Auto-Rotation
+function RightColumnCarousel({ userTrustScore, subscriptionsCount, pots, address, wallet, connection, signAndSendTransaction, fetchPots, refreshBalance, refetchUsdc, showToast }: any) {
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
+
+    const totalSlides = 2; // Always 2 slides: Reputation Level, then Subscriptions + Quick Save
+
+    // Auto-rotate every 2 seconds
+    useEffect(() => {
+        if (isPaused) return;
+
+        const timer = setInterval(() => {
+            setCurrentSlide((prev) => (prev + 1) % totalSlides);
+        }, 2000);
+
+        return () => clearInterval(timer);
+    }, [isPaused, totalSlides]);
+
+    const handleQuickSave = async (pot: any) => {
+        if (!address) return;
+        try {
+            const { AnchorProvider, Program, BN } = await import('@coral-xyz/anchor');
+            const { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } = await import('@solana/spl-token');
+            const { CADPAY_MINT } = await import('@/utils/cadpayToken');
+            const { deriveSavingsPotPDA } = await import('@/utils/savingsAccounts');
+            const idl = await import('@/../anchor/target/idl/cadpay_profiles.json');
+
+            const [potPda] = deriveSavingsPotPDA(new PublicKey(address), pot.name);
+            const userAta = await getAssociatedTokenAddress(CADPAY_MINT, new PublicKey(address), true);
+            const potAta = await getAssociatedTokenAddress(CADPAY_MINT, potPda, true);
+
+            const provider = new AnchorProvider(connection, (wallet as any), {});
+            const program = new Program(idl as any, provider);
+
+            const quickSaveAmount = 1 * 1_000_000;
+            const quickSaveBN = new BN(quickSaveAmount.toString());
+
+            const tx = await program.methods
+                .depositToPot(quickSaveBN)
+                .accounts({
+                    savingsPot: potPda,
+                    user: new PublicKey(address),
+                    userAta: userAta,
+                    potAta: potAta,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                })
+                .transaction();
+
+            tx.feePayer = new PublicKey(address);
+
+            await signAndSendTransaction(tx);
+            fetchPots();
+            refreshBalance();
+            refetchUsdc();
+            showToast(`1 USDC saved to ${pot.name}`, 'success');
+        } catch (e) {
+            console.error("Quick transfer failed", e);
+            showToast("Quick save failed", "error");
+        }
+    };
+
+    return (
+        <div
+            className="relative overflow-hidden"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+        >
+            {/* Slides Container */}
+            <motion.div
+                className="flex transition-transform duration-500 ease-in-out"
+                animate={{ x: `-${currentSlide * 100}%` }}
+            >
+                {/* Slide 1: Reputation Level */}
+                <div className="min-w-full">
+                    <ReputationLevel score={userTrustScore} />
+                </div>
+
+                {/* Slide 2: Active Subscriptions + Quick Save (stacked) */}
+                <div className="min-w-full space-y-4">
+                    <StatCard title="Active Subscriptions" value={subscriptionsCount.toString()} color="blue" />
+
+                    {pots.length > 0 && (
+                        <div
+                            className="bg-zinc-900/40 backdrop-blur-md border border-white/10 rounded-2xl p-5"
+                        >
+                            <p className="text-xs text-zinc-400 mb-3 flex items-center gap-2">
+                                <PiggyBankIcon size={16} className="text-orange-400" />
+                                Quick Save
+                            </p>
+                            <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                                {pots.map((pot: any) => (
+                                    <button
+                                        key={pot.name}
+                                        onClick={() => handleQuickSave(pot)}
+                                        className="w-full flex items-center justify-between p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-all group"
+                                    >
+                                        <span className="text-xs text-zinc-300 group-hover:text-white transition-colors">{pot.name}</span>
+                                        <div className="flex items-center gap-1">
+                                            <PlusIcon size={12} className="text-orange-400" weight="bold" />
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </motion.div>
+
+            {/* Dot Indicators */}
+            <div className="flex justify-center gap-2 mt-4">
+                {Array.from({ length: totalSlides }).map((_, index) => (
+                    <button
+                        key={index}
+                        onClick={() => setCurrentSlide(index)}
+                        className={`w-2 h-2 rounded-full transition-all ${currentSlide === index
+                            ? 'bg-orange-500 w-6'
+                            : 'bg-zinc-600 hover:bg-zinc-500'
+                            }`}
+                    />
+                ))}
+            </div>
         </div>
     );
 }
