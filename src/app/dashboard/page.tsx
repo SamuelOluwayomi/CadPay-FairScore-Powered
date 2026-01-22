@@ -26,7 +26,8 @@ import ReputationLevel from '@/components/security/ReputationLevel';
 import FullProfileEditModal from '@/components/shared/FullProfileEditModal';
 import OnboardingModal from '@/components/shared/OnboardingModal';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
-import { constructMintTransaction, constructTransferTransaction, DEMO_MERCHANT_WALLET, ensureMerchantHasATA } from '@/utils/cadpayToken';
+import { constructMintTransaction, constructTransferTransaction, DEMO_MERCHANT_WALLET, ensureMerchantHasATA, TOKEN_PROGRAM_ID } from '@/utils/cadpayToken';
+import { getAssociatedTokenAddress, createTransferInstruction, createAssociatedTokenAccountInstruction, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import CopyButton from '@/components/shared/CopyButton';
 import { useMerchant } from '@/context/MerchantContext';
 import CreateSavingsModal from '@/components/shared/CreateSavingsModal';
@@ -34,7 +35,6 @@ import SavingsPotView from '@/components/shared/SavingsPotView';
 import UnifiedSendModal from '@/components/shared/UnifiedSendModal';
 import { useToast } from '@/context/ToastContext';
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, ASSOCIATED_TOKEN_PROGRAM_ID, createTransferInstruction } from '@solana/spl-token';
 import { CADPAY_MINT } from '@/utils/cadpayToken';
 import { deriveSavingsPotPDA } from '@/utils/savingsAccounts';
 import idl from '../../../anchor/target/idl/cadpay_profiles.json';
@@ -1151,7 +1151,7 @@ function TierCard({ name, minScore, color, icon, perks, rankUp, isCurrentTier }:
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`min-w-[280px] bg-zinc-900/40 backdrop-blur-md border rounded-2xl p-5 relative overflow-hidden ${isCurrentTier ? 'ring-2 ring-orange-500/50 border-orange-500/30' : 'border-white/10'
+            className={`min-w-70 bg-zinc-900/40 backdrop-blur-md border rounded-2xl p-5 relative overflow-hidden ${isCurrentTier ? 'ring-2 ring-orange-500/50 border-orange-500/30' : 'border-white/10'
                 }`}
         >
             {/* Current Tier Badge */}

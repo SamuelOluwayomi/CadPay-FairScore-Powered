@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/providers/Providers";
 import ClickBirdEffect from "@/components/shared/ClickBirdEffect";
 import BackgroundLogos from "@/components/shared/BackgroundLogos";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
           <div className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
             {children}
           </div>
+          <Analytics />
         </Providers>
       </body>
     </html>
