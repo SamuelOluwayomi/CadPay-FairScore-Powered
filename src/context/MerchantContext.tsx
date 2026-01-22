@@ -52,8 +52,12 @@ export function MerchantProvider({ children }: { children: React.ReactNode }) {
     const [services, setServices] = useState<MerchantService[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Manual Admin/Demo State
+    const [manualMerchant, setManualMerchant] = useState<Merchant | null>(null);
+
     // Derived Merchant State from On-Chain Profile
     const merchant = React.useMemo(() => {
+        if (manualMerchant) return manualMerchant;
         if (!profile) return null;
         return {
             id: profile.authority.toBase58(),
@@ -64,7 +68,7 @@ export function MerchantProvider({ children }: { children: React.ReactNode }) {
             joinedAt: new Date(),
             password: '' // Not needed
         };
-    }, [profile]);
+    }, [profile, manualMerchant]);
 
     // Seed Services if none exist for this merchant
     useEffect(() => {
@@ -128,7 +132,22 @@ export function MerchantProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const loginMerchant = async () => {
+    const loginMerchant = async (email?: string, password?: string) => {
+        // Hardcoded Admin/Demo Login
+        if (email === 'demo@cadpay.xyz' && password === 'admin123') {
+            setManualMerchant({
+                id: "CqUmZNET15kK6qjNPrtPZdE3VUMem9ULtQ77GtVpUo1f",
+                name: "Admin Merchant",
+                email: "demo@cadpay.xyz",
+                walletPublicKey: "CqUmZNET15kK6qjNPrtPZdE3VUMem9ULtQ77GtVpUo1f",
+                walletSecretKey: "",
+                joinedAt: new Date(),
+                password: "admin123"
+            });
+            return true;
+        }
+
+        // Standard Wallet Login
         return !!merchant;
     };
 

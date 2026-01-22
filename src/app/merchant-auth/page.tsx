@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { StorefrontIcon, UserCircleIcon, ArrowRightIcon, SpinnerIcon, LockKeyIcon, ArrowLeftIcon } from '@phosphor-icons/react';
 import { useMerchant } from '@/context/MerchantContext';
+import { useLazorkit } from '@/hooks/useLazorkit';
 import Image from 'next/image';
 
 export default function MerchantAuthPage() {
@@ -18,6 +19,7 @@ export default function MerchantAuthPage() {
 
     const router = useRouter();
     const { createMerchant, loginMerchant } = useMerchant();
+    const { createPasskeyWallet, loginWithPasskey, isAuthenticated, address } = useLazorkit();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,11 +27,26 @@ export default function MerchantAuthPage() {
         setError('');
 
         try {
+            // 0. Check for Demo Login (Bypass Wallet)
+            const isDemoLogin = email === 'demo@cadpay.xyz' && !isSignup;
+
+            // 1. Ensure Wallet Connection first (if not demo)
+            if (!isDemoLogin && (!isAuthenticated || !address)) {
+                if (isSignup) {
+                    await createPasskeyWallet(null); // null = do not redirect
+                } else {
+                    await loginWithPasskey(null); // null = do not redirect
+                }
+            }
+
+            // Short delay to ensure context updates
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             if (isSignup) {
                 // Register
                 await createMerchant(name, email);
             } else {
-                // Login with password validation
+                // Login
                 const success = await loginMerchant(email, password);
                 if (!success) {
                     throw new Error("Invalid email or password.");
@@ -38,6 +55,7 @@ export default function MerchantAuthPage() {
             // Redirect
             router.push('/merchant');
         } catch (err: any) {
+            console.error("Auth error:", err);
             setError(err.message || 'Authentication failed');
         } finally {
             setLoading(false);

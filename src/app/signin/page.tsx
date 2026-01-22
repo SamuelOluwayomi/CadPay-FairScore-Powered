@@ -67,7 +67,7 @@ export default function SignIn() {
 
                     {/* Auth Button */}
                     <button
-                        onClick={loginWithPasskey}
+                        onClick={() => loginWithPasskey()}
                         disabled={loading}
                         className="w-full py-3 md:py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
                     >

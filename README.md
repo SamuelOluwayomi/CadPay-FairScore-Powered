@@ -37,6 +37,14 @@ This project fulfills the [FairScale Solana Build Bounty](https://earn.superteam
 - Modern browser with WebAuthn support
 - Device with biometric authentication
 
+## 🛍️ Merchant Portal
+Merchants can manage subscriptions and view analytics.
+
+**Admin Demo Login:**
+- **Email:** `demo@cadpay.xyz`
+- **Password:** `admin123`
+*(This account is pre-populated with live transaction data)*
+
 ## 🚀 Quick Start
 
 ### 1. Clone & Install

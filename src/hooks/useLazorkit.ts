@@ -63,7 +63,7 @@ export function useLazorkit() {
         }
     }, [isConnected, address, router]);
 
-    const handleAuth = useCallback(async () => {
+    const handleAuth = useCallback(async (redirectPath: string | null = '/dashboard') => {
         try {
             setLocalLoading(true);
 
@@ -77,7 +77,7 @@ export function useLazorkit() {
             // This will trigger the biometric prompt
             await connect();
             showToast('Successfully authenticated!', 'success');
-            router.push('/dashboard');
+            if (redirectPath) router.push(redirectPath);
         } catch (error: any) {
             console.error("Authentication failed:", error);
             if (error.name === 'NotAllowedError' || error.message?.includes('timed out') || error.message?.includes('not allowed')) {
@@ -90,7 +90,7 @@ export function useLazorkit() {
         }
     }, [connect, disconnect, isConnected, router, showToast]);
 
-    const handleCreate = useCallback(async () => {
+    const handleCreate = useCallback(async (redirectPath: string | null = '/dashboard') => {
         try {
             setLocalLoading(true);
 
@@ -112,7 +112,7 @@ export function useLazorkit() {
 
             // Now create new wallet
             await connect();
-            router.push('/dashboard');
+            if (redirectPath) router.push(redirectPath);
         } catch (error: any) {
             console.error("Wallet creation failed:", error);
 
@@ -134,25 +134,25 @@ export function useLazorkit() {
     // Create connection once
     // #region agent log
     const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://api.devnet.solana.com';
-    
+
     // #endregion
     const [connection] = useState(() => new Connection(rpcUrl, 'confirmed'));
 
     const refreshBalance = useCallback(async () => {
         if (!address) return;
         // #region agent log
-        
+
         // #endregion
         try {
             const lamports = await connection.getBalance(new PublicKey(address));
             const solBalance = lamports / LAMPORTS_PER_SOL;
             // #region agent log
-            
+
             // #endregion
             setBalance(solBalance);
         } catch (e: any) {
             // #region agent log
-            
+
             // #endregion
             // Silently fail on polling errors to avoid console spam
             // console.error("Failed to fetch balance", e);
@@ -215,7 +215,7 @@ export function useLazorkit() {
         if (!address || !stableSmartWalletPubkey) return;
         try {
             const potMetaData = JSON.parse(localStorage.getItem(`savings_pots_${address}`) || '[]');
-            
+
             // Separate wallet-based pots from PDA-based pots
             const walletBasedPots = potMetaData.filter((p: any) => p.isWalletBased);
             const pdaBasedPots = potMetaData.filter((p: any) => !p.isWalletBased);
@@ -227,7 +227,7 @@ export function useLazorkit() {
                         const balance = await connection.getBalance(new PublicKey(pot.address));
                         const { getAssociatedTokenAddress } = await import('@solana/spl-token');
                         const { CADPAY_MINT } = await import('@/utils/cadpayToken');
-                        
+
                         // Get USDC balance from ATA
                         const ata = await getAssociatedTokenAddress(CADPAY_MINT, new PublicKey(pot.address), true);
                         const ataInfo = await connection.getTokenAccountBalance(ata).catch(() => null);
@@ -307,11 +307,11 @@ export function useLazorkit() {
             // 2. Fund this new wallet from Treasury for Rent
             showToast('Funding new wallet from treasury...', 'info');
             const rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0); // Standard account rent
-            
+
             const fundResponse = await fetch('/api/fund-rent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     accountAddress: potPubkey.toBase58(),
                     rentAmount: rentExemptAmount
                 })
@@ -324,7 +324,7 @@ export function useLazorkit() {
 
             const fundData = await fundResponse.json();
             console.log('✅ Rent funded from treasury:', fundData.signature);
-            
+
             // Wait a moment for the rent transfer to confirm
             await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -345,7 +345,7 @@ export function useLazorkit() {
             // 4. Refresh pots and show success
             await fetchPots();
             showToast(`Success! Savings pot "${name}" created as separate wallet.`, 'success');
-            
+
             return potPubkey.toBase58();
 
         } catch (error: any) {
@@ -394,7 +394,7 @@ export function useLazorkit() {
             // Don't set blockhash manually - Lazorkit's signAndSendTransaction handles it
             // Setting it here can cause "TransactionTooOld" errors if there's any delay
             // Lazorkit will fetch a fresh blockhash when signing
-            
+
             // Set fee payer
             tx.feePayer = new PublicKey(address);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     WalletIcon, TrendUpIcon, UsersIcon, LightningIcon, CopyIcon, CheckIcon, StorefrontIcon,
@@ -37,6 +37,7 @@ export default function MerchantDashboard() {
     const [loading, setLoading] = useState(true);
     const [showKey, setShowKey] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const seenPayers = useRef(new Set<string>());
 
     const [newServicePrice, setNewServicePrice] = useState(19.99);
     const [newServiceColor, setNewServiceColor] = useState('#EF4444');
@@ -81,32 +82,10 @@ export default function MerchantDashboard() {
     // useEffect(() => {
     // if (!merchant) return;
 
-    // 1. Determine Authorization for Mock Data
-    const isDefaultMerchant = merchant?.email?.toLowerCase() === 'admin@gmail.com';
-
-    let baseRevenue = 0;
-    let baseUsers = 0;
-    let baseMrr = 0;
-    let initialChartData: any[] = [];
-
-    if (isDefaultMerchant) {
-        // Calculate totals from hardcoded SERVICES
-        baseUsers = SERVICES.length * 42; // Fake multiplier for scale
-        baseRevenue = SERVICES.reduce((acc, s) => acc + (s.plans[0].price * 42), 0);
-        baseMrr = baseRevenue; // Simple assumption
-
-        // Prepare Pie Chart Data from SERVICES
-        initialChartData = SERVICES.slice(0, 5).map(s => ({
-            name: s.name,
-            value: s.plans[0].price * 42,
-            color: s.color
-        }));
-    } else {
-        // New Merchant starts fresh
-        initialChartData = [
-            { name: 'No Data', value: 100, color: '#27272a' }
-        ];
-    }
+    // 2. Initialize with Empty Data (Real fetching)
+    let initialChartData: any[] = [
+        { name: 'No Data', value: 100, color: '#27272a' }
+    ];
 
     // Use custom RPC URL from environment (fallback to public devnet)
 
@@ -122,18 +101,51 @@ export default function MerchantDashboard() {
     // const merchantKey = new PublicKey(merchant.walletPublicKey); // Unused here, kept for ref
 
     const fetchHistory = useCallback(async () => {
-        try {
-            // Only fetch for the default seeded admin merchant to reduce load
-            if (!isDefaultMerchant) {
-                setLoading(false);
-                return;
-            }
+        if (!merchant) return;
 
-            const merchantTokenAccount = new PublicKey('58Bx8fD3RP4dCaoKiYQW76PUMEXSmLvcb5pT1sv2ypRj');
+        // RESET Metrics to prevent accumulation on re-fetch
+        setTotalRevenue(0);
+        setMrr(0);
+        setGasSaved(0);
+        setTxCount(0);
+        seenPayers.current.clear();
+
+        try {
+            // Use specific Token Account for Demo, otherwise User Wallet
+            // Use specific Token Account for Demo, otherwise derive ATA
+            const demoEmails = ['demo@cadpay.xyz', 'admin@gmail.com', 'onchain@cadpay.xyz'];
+            const isDemo = demoEmails.includes(merchant.email);
+
+            let accountToFetch = isDemo
+                ? new PublicKey('EjHw3nsXgJeLwZU5uBD4tbcb2mTZ9rZpFQEeYLwWjJwP')
+                : new PublicKey(merchant.walletPublicKey);
+
+            // Dynamically find the USDC ATA for regular merchants
+            if (!isDemo) {
+                try {
+                    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+                        new PublicKey(merchant.walletPublicKey),
+                        { programId: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') } // Token Program
+                    );
+
+                    // Look for USDC Devnet Mint: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
+                    const usdcMint = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+                    const usdcAccount = tokenAccounts.value.find((t: any) => t.account.data.parsed.info.mint === usdcMint);
+
+                    if (usdcAccount) {
+                        accountToFetch = new PublicKey(usdcAccount.pubkey);
+                    } else if (tokenAccounts.value.length > 0) {
+                        // Fallback to first found token account if USDC not found
+                        accountToFetch = new PublicKey(tokenAccounts.value[0].pubkey);
+                    }
+                } catch (e) {
+                    // Fallback to wallet is automatic since accountToFetch was initialized to walletPublicKey
+                }
+            }
 
             let signatures;
             try {
-                signatures = await connection.getSignaturesForAddress(merchantTokenAccount, { limit: 10 });
+                signatures = await connection.getSignaturesForAddress(accountToFetch, { limit: 10 });
             } catch (rpcError) {
                 console.log('RPC fetch failed, using empty data:', rpcError);
                 setTransactions([]);
@@ -169,7 +181,12 @@ export default function MerchantDashboard() {
             for (let i = 0; i < txIds.length; i++) {
                 const sig = txIds[i];
                 try {
-                    const single: any = await connection.getParsedTransaction(sig, 'confirmed');
+                    // Support Versioned Transactions
+                    const single: any = await connection.getParsedTransaction(sig, {
+                        commitment: 'confirmed',
+                        maxSupportedTransactionVersion: 0
+                    });
+
                     if (single) {
                         txMap.set(sig, single);
 
@@ -204,27 +221,39 @@ export default function MerchantDashboard() {
                             return extracted;
                         };
 
+                        const checkInstructionForTransfer = (instr: any) => {
+                            let val = 0;
+                            if (instr.parsed?.type === 'mintTo' && instr.parsed?.info?.amount) { // Treat mints as revenue for demo
+                                val = Number(BigInt(instr.parsed.info.amount)) / 1_000_000;
+                            }
+                            if ((instr.parsed?.type === 'transfer' || instr.parsed?.type === 'transferChecked') && instr.parsed?.info?.tokenAmount?.uiAmount) {
+                                val = instr.parsed.info.tokenAmount.uiAmount;
+                            }
+                            return val;
+                        };
+
+                        // 1. Top Level Instructions
                         if (tx?.transaction?.message?.instructions) {
                             for (const instr of tx.transaction.message.instructions) {
                                 const found = checkInstructionForMemo(instr);
                                 if (found) memoText = found;
-                                if (instr.parsed?.type === 'mintTo' && instr.parsed?.info?.amount) {
-                                    amount = Number(BigInt(instr.parsed.info.amount)) / 1_000_000;
-                                }
-                                if ((instr.parsed?.type === 'transfer' || instr.parsed?.type === 'transferChecked') && instr.parsed?.info?.tokenAmount?.uiAmount) {
-                                    amount = instr.parsed.info.tokenAmount.uiAmount;
-                                }
+                                amount += checkInstructionForTransfer(instr);
                             }
                         }
-                        if (!memoText && tx?.meta?.innerInstructions) {
+
+                        // 2. Inner Instructions (Critical for SPL via programs)
+                        if (tx?.meta?.innerInstructions) {
                             for (const innerSet of tx.meta.innerInstructions) {
                                 for (const instr of innerSet.instructions) {
                                     const found = checkInstructionForMemo(instr);
-                                    if (found) { memoText = found; break; }
+                                    if (found && !memoText) memoText = found;
+                                    const val = checkInstructionForTransfer(instr);
+                                    if (val > 0) amount = val; // Prioritize inner transfer if found (often the real movement)
                                 }
-                                if (memoText) break;
                             }
                         }
+
+                        // 3. Log Parsing for Memo (Fallback)
                         if (!memoText && tx?.meta?.logMessages) {
                             const logs = tx.meta.logMessages;
                             for (const log of logs) {
@@ -232,7 +261,8 @@ export default function MerchantDashboard() {
                                 if (match && match[1]) { memoText = match[1]; break; }
                             }
                         }
-                        // Fallback Balance Logic
+
+                        // 4. Fallback Balance Logic (If parsed instructions failed)
                         if (amount === 0) {
                             const preBalances = tx?.meta?.preTokenBalances || [];
                             const postBalances = tx?.meta?.postTokenBalances || [];
@@ -241,25 +271,47 @@ export default function MerchantDashboard() {
                                     const postAmt = p?.uiTokenAmount?.uiAmount || 0;
                                     const preMatch = preBalances.find((q: any) => q.accountIndex === p.accountIndex);
                                     const preAmt = preMatch?.uiTokenAmount?.uiAmount || 0;
-                                    if (postAmt - preAmt > 0) { amount = postAmt - preAmt; break; }
-                                    if (preBalances.length === 0 && postAmt > 0) { amount = postAmt; break; }
+                                    if (postAmt - preAmt > 0) {
+                                        amount = postAmt - preAmt;
+                                        break; // Assume first positive change is the payment
+                                    }
+                                    // New account funding
+                                    if (!preMatch && postAmt > 0) { amount = postAmt; break; }
                                 }
                             }
                         }
                         // --- MEMO & AMOUNT LOGIC END ---
+
+                        // Hash for random deterministic color
+                        const getColorForService = (name: string) => {
+                            let hash = 0;
+                            for (let j = 0; j < name.length; j++) {
+                                hash = name.charCodeAt(j) + ((hash << 5) - hash);
+                            }
+                            const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+                            return '#' + '00000'.substring(0, 6 - c.length) + c;
+                        };
+
+                        const finalColor = getColorForService(memoText || 'Subscription');
+
+                        // Extract Payer (First account is fee payer/signer)
+                        const accountKeys = tx.transaction.message.accountKeys;
+                        const payerKey = accountKeys[0]?.pubkey?.toBase58 ? accountKeys[0].pubkey.toBase58() :
+                            accountKeys[0]?.pubkey ? String(accountKeys[0].pubkey) :
+                                (typeof accountKeys[0] === 'string' ? accountKeys[0] : 'Unknown');
 
                         // Update State for this specific transaction
                         setTransactions(prev => prev.map(item => {
                             if (item.id === sig) {
                                 return {
                                     ...item,
-                                    customer: '0x' + sig.slice(0, 4) + '...' + sig.slice(-4),
+                                    customer: payerKey.slice(0, 4) + '...' + payerKey.slice(-4),
                                     amount: amount,
                                     memo: memoText,
                                     status: 'success',
                                     service: {
                                         name: memoText || 'Subscription',
-                                        color: '#10B981'
+                                        color: finalColor
                                     }
                                 };
                             }
@@ -271,17 +323,27 @@ export default function MerchantDashboard() {
                             const realRevenue = amount;
                             setTotalRevenue(prev => prev + realRevenue);
                             setMrr(prev => prev + realRevenue);
+
+                            // Ensure unique customer count
+                            if (!seenPayers.current.has(payerKey)) {
+                                seenPayers.current.add(payerKey);
+                                setTxCount(prev => prev + 1);
+                            }
+
                             setGasSaved(prev => prev + 0.000005);
 
                             // Update Chart Incrementally
                             setChartData(prevData => {
                                 const sName = memoText || 'Subscription';
-                                const existingIndex = prevData.findIndex(d => d.name === sName);
-                                const newD = [...prevData];
+                                // Remove 'No Data' if it exists
+                                const cleanData = prevData.filter(d => d.name !== 'No Data');
+
+                                const existingIndex = cleanData.findIndex(d => d.name === sName);
+                                const newD = [...cleanData];
                                 if (existingIndex >= 0) {
                                     newD[existingIndex] = { ...newD[existingIndex], value: newD[existingIndex].value + amount };
                                 } else {
-                                    newD.push({ name: sName, value: amount, color: '#10B981' });
+                                    newD.push({ name: sName, value: amount, color: finalColor });
                                 }
                                 return newD;
                             });
@@ -300,7 +362,7 @@ export default function MerchantDashboard() {
             console.error("Error fetching merchant history:", error);
             setLoading(false);
         }
-    }, [merchant?.walletPublicKey, isDefaultMerchant]);
+    }, [merchant?.walletPublicKey]);
 
     useEffect(() => {
         if (!merchant?.walletPublicKey) return;
@@ -340,6 +402,13 @@ export default function MerchantDashboard() {
         setNewServicePrice(19.99);
         setRequireTrustScore(false);
         setMinimumTrustScore(50);
+    };
+
+    const handleNavClick = (section: any) => {
+        setActiveSection(section);
+        if (window.innerWidth < 768) {
+            setSidebarOpen(false);
+        }
     };
 
     if (isLoading) {
@@ -411,31 +480,31 @@ export default function MerchantDashboard() {
                                     icon={<StorefrontIcon size={20} />}
                                     label="Dashboard"
                                     active={activeSection === 'dashboard'}
-                                    onClick={() => { setActiveSection('dashboard'); setSidebarOpen(false); }}
+                                    onClick={() => handleNavClick('dashboard')}
                                 />
                                 <NavItem
                                     icon={<ChartPieIcon size={20} />}
                                     label="Analytics"
                                     active={activeSection === 'analytics'}
-                                    onClick={() => { setActiveSection('analytics'); setSidebarOpen(false); }}
+                                    onClick={() => handleNavClick('analytics')}
                                 />
                                 <NavItem
                                     icon={<UsersIcon size={20} />}
                                     label="Customers"
                                     active={activeSection === 'customers'}
-                                    onClick={() => { setActiveSection('customers'); setSidebarOpen(false); }}
+                                    onClick={() => handleNavClick('customers')}
                                 />
                                 <NavItem
                                     icon={<ReceiptIcon size={20} />}
                                     label="Invoices"
                                     active={activeSection === 'invoices'}
-                                    onClick={() => { setActiveSection('invoices'); setSidebarOpen(false); }}
+                                    onClick={() => handleNavClick('invoices')}
                                 />
                                 <NavItem
                                     icon={<KeyIcon size={20} />}
                                     label="Developer"
                                     active={activeSection === 'developer'}
-                                    onClick={() => { setActiveSection('developer'); setSidebarOpen(false); }}
+                                    onClick={() => handleNavClick('developer')}
                                 />
                             </nav>
                         </div>
