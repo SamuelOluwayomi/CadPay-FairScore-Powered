@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import Navbar from '@/components/shared/Navbar';
 import Hero from '@/components/shared/Hero';
+import FairScoreSection from '@/components/landing/FairScoreSection';
 import TrailerLoader from '@/components/shared/TrailerLoader';
 import About from '@/components/shared/About';
 import Footer from '@/components/shared/Footer';
@@ -27,6 +28,7 @@ export default function Home() {
 
       <main className="w-full">
         <Hero startAnimation={hasLoaded} />
+        <FairScoreSection />
         <About />
         <Footer />
       </main>
