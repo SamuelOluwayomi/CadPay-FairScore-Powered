@@ -219,7 +219,7 @@ export default function MerchantAuthPage() {
                                     <StorefrontIcon weight="bold" />
                                 </div>
                                 <div className="text-xs text-orange-200">
-                                    <p className="font-bold">Demo Access</p>
+                                    <p className="font-bold">Admin Merchant Account</p>
                                     <p className="opacity-70">No wallet signature required.</p>
                                 </div>
                             </div>
