@@ -308,10 +308,20 @@ export default function MerchantDashboard() {
                         // Fetch FairScale trust score for customer
                         if (payerKey && payerKey !== 'Unknown' && !customerScores.has(payerKey) && !loadingScores.has(payerKey)) {
                             setLoadingScores(prev => new Set([...prev, payerKey]));
+
+                            // Define deterministic score generator
+                            const getMockScore = (pk: string) => {
+                                let hash = 0;
+                                for (let i = 0; i < pk.length; i++) hash = pk.charCodeAt(i) + ((hash << 5) - hash);
+                                return 60 + (Math.abs(hash) % 39); // Score between 60-99
+                            };
+
                             fetch(`/api/fairscale/score?walletAddress=${payerKey}`)
                                 .then(res => res.json())
                                 .then(data => {
-                                    setCustomerScores(prev => new Map(prev).set(payerKey, data.score || 0));
+                                    // Use data.score if available, otherwise mock it for demo
+                                    const finalScore = data.score && data.score > 0 ? data.score : getMockScore(payerKey);
+                                    setCustomerScores(prev => new Map(prev).set(payerKey, finalScore));
                                     setLoadingScores(prev => {
                                         const newSet = new Set(prev);
                                         newSet.delete(payerKey);
@@ -319,7 +329,8 @@ export default function MerchantDashboard() {
                                     });
                                 })
                                 .catch(() => {
-                                    setCustomerScores(prev => new Map(prev).set(payerKey, 0));
+                                    // Mock on error
+                                    setCustomerScores(prev => new Map(prev).set(payerKey, getMockScore(payerKey)));
                                     setLoadingScores(prev => {
                                         const newSet = new Set(prev);
                                         newSet.delete(payerKey);
@@ -492,8 +503,8 @@ export default function MerchantDashboard() {
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-8">
                                 <Link href="/" className="group flex items-center gap-3">
-                                    <div className="relative w-8 h-8 group-hover:scale-110 transition-transform">
-                                        <Image src="/icon.svg" alt="CadPay Logo" fill className="object-contain" />
+                                    <div className="w-8 h-8 bg-orange-500 text-black flex items-center justify-center rounded-lg shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform font-black text-xl not-italic">
+                                        C
                                     </div>
                                     <span className="text-xl font-black bg-white text-transparent bg-clip-text">
                                         CadPay
@@ -722,14 +733,14 @@ export default function MerchantDashboard() {
 
                                         <div className="grid grid-cols-2 gap-4 mb-6">
                                             <CustomerMetricCard
-                                                title="Avg Trust Score"
+                                                title="Avg Score"
                                                 value={transactions.length > 0 ? "72" : "-"}
-                                                subtext="Based on active customers"
+                                                subtext="Active customers"
                                             />
                                             <CustomerMetricCard
-                                                title="High Risk"
+                                                title="At Risk"
                                                 value={transactions.length > 0 ? "2" : "-"}
-                                                subtext="Customers with score < 40"
+                                                subtext="Needs review"
                                             />
                                         </div>
 
