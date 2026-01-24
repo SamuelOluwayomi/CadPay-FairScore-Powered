@@ -40,23 +40,41 @@ This project fulfills the [FairScale Solana Build Bounty](https://earn.superteam
 > High-level data flow of the CadPay system.
 
 ```mermaid
-graph TD
-    User[👤 User] -->|1. Auth with Passkey| Lazorkit[🔐 Lazorkit SDK]
-    User -->|2. Request Subscription| CadPay[💳 CadPay Frontend]
+sequenceDiagram
+    autonumber
+    actor User as 👤 User
+    participant Frontend as 🖥️ CadPay UI
+    participant Lazorkit as 🔐 Lazorkit Auth
+    participant FairScale as 🛡️ FairScale API
+    participant Solana as ⚡ Solana Network
+
+    Note over User, Lazorkit: Phase 1: Authentication
+    User->>Frontend: Click "Connect Wallet"
+    Frontend->>Lazorkit: Request Passkey Sign-in
+    Lazorkit-->>User: Prompt FaceID / TouchID
+    User-->>Lazorkit: Biometric Auth Success
+    Lazorkit-->>Frontend: Return Wallet Config (Pubkey)
+
+    Note over Frontend, FairScale: Phase 2: Reputation Gate
+    User->>Frontend: Select "Premium Plan" (Requires Score > 70)
+    Frontend->>FairScale: GET /score?address={UserWallet}
+    FairScale-->>Frontend: Return { score: 72, tier: "High" }
     
-    CadPay -->|3. Check Reputation| FairScale[🛡️ FairScale API]
-    FairScale -- Score Released --> CadPay
-    
-    CadPay -->|4. Validate Score| Logic{Score > Required?}
-    
-    Logic -- No --> Reject[🛑 Access Denied]
-    Logic -- Yes --> Approve[✅ Access Granted]
-    
-    Approve -->|5. Execute Transfer| Solana[⚡ Solana Blockchain]
-    Lazorkit -- Signs & Pays Fee --> Solana
-    
-    Solana -- Confirmation --> CadPay
-    CadPay -- Update UI --> User
+    alt Score < 70
+        Frontend-->>User: ❌ Show Lock Icon (Access Denied)
+    else Score >= 70
+        Frontend-->>User: ✅ Enable "Subscribe" Button
+    end
+
+    Note over Frontend, Solana: Phase 3: Transaction execution
+    User->>Frontend: Click "Confirm Subscription"
+    Frontend->>Lazorkit: Construct Transaction & Request Sign
+    Lazorkit->>Lazorkit: Paymaster Signs Fee (Gasless)
+    Lazorkit-->>User: Final Confirmation Prompt
+    User-->>Lazorkit: Approve
+    Lazorkit->>Solana: Submit Signed Transaction
+    Solana-->>Frontend: Transaction Confirmed (Success)
+    Frontend-->>User: Show Success & Update Dashboard
 ```
 
 **Flow Explanation:**
