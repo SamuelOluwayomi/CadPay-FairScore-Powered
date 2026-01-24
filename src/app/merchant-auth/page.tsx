@@ -12,8 +12,8 @@ import Image from 'next/image';
 export default function MerchantAuthPage() {
     const [isSignup, setIsSignup] = useState(false);
     const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [email, setEmail] = useState('demo@cadpay.xyz');
+    const [password, setPassword] = useState('admin123');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
