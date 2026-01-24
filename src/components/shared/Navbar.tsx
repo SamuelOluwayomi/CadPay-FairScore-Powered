@@ -71,7 +71,6 @@ export default function NavBar() {
                         className="fixed inset-0 z-40 bg-black pt-24 px-6 md:hidden"
                     >
                         <div className="flex flex-col gap-6 text-lg font-medium">
-                            <MobileLink href="https://github.com/lazor-kit/lazor-kit" onClick={() => setIsOpen(false)}>The Bridge</MobileLink>
                             <a href="https://app.fairscale.xyz" target="_blank" rel="noopener noreferrer" className="text-zinc-300 hover:text-white border-b border-white/5 pb-4" onClick={() => setIsOpen(false)}>
                                 FairScale App
                             </a>
