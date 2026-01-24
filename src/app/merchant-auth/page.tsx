@@ -109,14 +109,8 @@ export default function MerchantAuthPage() {
 
             <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">
-                    <div className="relative w-16 h-16 mx-auto mb-4 bg-zinc-900 rounded-2xl flex items-center justify-center border border-white/10 shadow-2xl shadow-orange-500/20">
-                        <Image
-                            src="/lazorkit-logo.png"
-                            alt="CadPay"
-                            fill
-                            sizes="64px"
-                            className="object-contain p-3"
-                        />
+                    <div className="relative w-16 h-16 mx-auto mb-4 bg-orange-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-orange-500/20 text-black font-black text-4xl">
+                        C
                     </div>
                     <h1 className="text-3xl font-black bg-linear-to-r from-white to-zinc-400 bg-clip-text text-transparent mb-2">
                         Merchant Portal
