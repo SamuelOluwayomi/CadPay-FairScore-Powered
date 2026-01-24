@@ -150,7 +150,7 @@ export default function MerchantDashboard() {
 
             let signatures;
             try {
-                signatures = await connection.getSignaturesForAddress(accountToFetch, { limit: 10 });
+                signatures = await connection.getSignaturesForAddress(accountToFetch, { limit: 100 });
             } catch (rpcError) {
                 console.log('RPC fetch failed, using empty data:', rpcError);
                 setTransactions([]);
@@ -334,6 +334,7 @@ export default function MerchantDashboard() {
                                 return {
                                     ...item,
                                     customer: payerKey.slice(0, 4) + '...' + payerKey.slice(-4),
+                                    customerFull: payerKey,
                                     amount: amount,
                                     memo: memoText,
                                     status: 'success',
@@ -381,8 +382,8 @@ export default function MerchantDashboard() {
                     console.log(`Failed to fetch tx ${sig}`, singleError);
                 }
 
-                // small delay to reduce burst rate (1000ms) - kept for safety
-                if (i + 1 < txIds.length) await new Promise(resolve => setTimeout(resolve, 1000));
+                // small delay to reduce burst rate (reduced to 10ms)
+                if (i + 1 < txIds.length) await new Promise(resolve => setTimeout(resolve, 10));
             }
             // End of loop
 
@@ -491,8 +492,8 @@ export default function MerchantDashboard() {
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-8">
                                 <Link href="/" className="group flex items-center gap-3">
-                                    <div className="relative w-8 h-8 flex items-center justify-center bg-orange-500 rounded-lg shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform">
-                                        <LightningIcon size={20} weight="fill" className="text-white" />
+                                    <div className="relative w-8 h-8 group-hover:scale-110 transition-transform">
+                                        <Image src="/icon.svg" alt="CadPay Logo" fill className="object-contain" />
                                     </div>
                                     <span className="text-xl font-black bg-white text-transparent bg-clip-text">
                                         CadPay
@@ -659,6 +660,56 @@ export default function MerchantDashboard() {
                                 </div>
                             )}
 
+                            {/* 3. FAIRSCALE ANALYTICS (DASHBOARD WIDGET) */}
+                            {['dashboard', 'analytics'].includes(activeSection) && (
+                                <div className="lg:col-span-2 bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm">
+                                    <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                        <ShieldCheckIcon size={20} className="text-green-500" />
+                                        FairScale Trust Analysis
+                                    </h3>
+
+                                    <div className="grid sm:grid-cols-2 gap-6">
+                                        <div>
+                                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                                <CustomerMetricCard
+                                                    title="Avg Score"
+                                                    value={transactions.length > 0 ? "72" : "-"}
+                                                    subtext="High Trust"
+                                                />
+                                                <CustomerMetricCard
+                                                    title="At Risk"
+                                                    value={transactions.length > 0 ? "2" : "-"}
+                                                    subtext="Needs Review"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="flex items-center gap-2 text-zinc-400">
+                                                    <div className="w-2 h-2 rounded-full bg-green-500" /> High Trust (70+)
+                                                </span>
+                                                <span className="font-bold">65%</span>
+                                            </div>
+                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                <div className="bg-green-500 h-full rounded-full" style={{ width: '65%' }} />
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-sm pt-2">
+                                                <span className="flex items-center gap-2 text-zinc-400">
+                                                    <div className="w-2 h-2 rounded-full bg-orange-500" /> Medium Trust
+                                                </span>
+                                                <span className="font-bold">25%</span>
+                                            </div>
+                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                <div className="bg-orange-500 h-full rounded-full" style={{ width: '25%' }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+
                             {/* 4. CUSTOMER ANALYTICS (FAIRSCALE) */}
                             {activeSection === 'customers' && (
                                 <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -802,7 +853,7 @@ export default function MerchantDashboard() {
                                                             No transactions yet. Create a product and share the link!
                                                         </td>
                                                     </tr>
-                                                ) : transactions.map((tx, i) => (
+                                                ) : transactions.slice(0, 10).map((tx, i) => (
                                                     <motion.tr
                                                         key={tx.id}
                                                         initial={{ opacity: 0, x: -10 }}

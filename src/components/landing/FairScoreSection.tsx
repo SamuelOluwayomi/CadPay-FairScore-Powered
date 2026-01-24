@@ -21,9 +21,6 @@ export default function FairScoreSection() {
                         viewport={{ once: true }}
                         className="flex items-center gap-2"
                     >
-                        <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                            <Sparkles className="w-5 h-5 text-orange-500" />
-                        </div>
                         <span className="text-sm font-bold text-orange-500 tracking-wider uppercase">Reputation Protocol</span>
                     </motion.div>
 
