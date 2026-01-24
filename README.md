@@ -36,6 +36,37 @@ This project fulfills the [FairScale Solana Build Bounty](https://earn.superteam
 - **Deposit Tier Carousel** - View your active deposit tiers and bonuses
 - **Auto-dismissing Boost Notifications** - Instant feedback when reputation increases
 
+## 🏗️ Architecture Overview
+> High-level data flow of the CadPay system.
+
+```mermaid
+graph TD
+    User[👤 User] -->|1. Auth with Passkey| Lazorkit[🔐 Lazorkit SDK]
+    User -->|2. Request Subscription| CadPay[💳 CadPay Frontend]
+    
+    CadPay -->|3. Check Reputation| FairScale[🛡️ FairScale API]
+    FairScale -- Score Released --> CadPay
+    
+    CadPay -->|4. Validate Score| Logic{Score > Required?}
+    
+    Logic -- No --> Reject[🛑 Access Denied]
+    Logic -- Yes --> Approve[✅ Access Granted]
+    
+    Approve -->|5. Execute Transfer| Solana[⚡ Solana Blockchain]
+    Lazorkit -- Signs & Pays Fee --> Solana
+    
+    Solana -- Confirmation --> CadPay
+    CadPay -- Update UI --> User
+```
+
+**Flow Explanation:**
+1.  **Authentication:** User signs in using biometric passkeys via Lazorkit (no seed phrases).
+2.  **Reputation Check:** When a user attempts an action (e.g., Mint Faucet, Subscribe), CadPay queries FairScale.
+3.  **Trust Enforcement:** 
+    - If `FairScore < Threshold`: Transaction is blocked at the UI/API level.
+    - If `FairScore ≥ Threshold`: Transaction proceeds.
+4.  **Execution:** Lazorkit creates the transaction, signs as the fee payer (Gasless), and submits to Solana.
+
 ## 🛠️ Tech Stack
 
 - **Framework:** Next.js 16.1.1 (React 19, Turbopack)
