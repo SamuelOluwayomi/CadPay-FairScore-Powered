@@ -731,7 +731,7 @@ export default function MerchantDashboard() {
                                             Trust Score Distribution
                                         </h3>
 
-                                        <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div className="grid grid-cols-1 gap-4 mb-6">
                                             <CustomerMetricCard
                                                 title="Avg Score"
                                                 value={transactions.length > 0 ? "72" : "-"}
