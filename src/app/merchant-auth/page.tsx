@@ -142,7 +142,7 @@ export default function MerchantAuthPage() {
                             className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${loginMode === 'merchant' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
                                 }`}
                         >
-                            Merchant Login
+                            Merchant Login/Sign Up
                         </button>
                     </div>
 
