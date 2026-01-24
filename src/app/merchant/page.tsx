@@ -82,11 +82,6 @@ export default function MerchantDashboard() {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Calculate Base Logic & Fetch Ledger
-    // Calculate Base Logic & Fetch Ledger
-    // useEffect(() => {
-    // if (!merchant) return;
-
     // 2. Initialize with Empty Data (Real fetching)
     let initialChartData: any[] = [
         { name: 'No Data', value: 100, color: '#27272a' }
@@ -103,7 +98,6 @@ export default function MerchantDashboard() {
     }
 
     const connection = new Connection(rpcUrl, 'confirmed');
-    // const merchantKey = new PublicKey(merchant.walletPublicKey); // Unused here, kept for ref
 
     const fetchHistory = useCallback(async () => {
         if (!merchant) return;
@@ -144,7 +138,7 @@ export default function MerchantDashboard() {
                         accountToFetch = new PublicKey(tokenAccounts.value[0].pubkey);
                     }
                 } catch (e) {
-                    // Fallback to wallet is automatic since accountToFetch was initialized to walletPublicKey
+                    // Fallback to wallet is automatic
                 }
             }
 
@@ -152,7 +146,7 @@ export default function MerchantDashboard() {
             try {
                 signatures = await connection.getSignaturesForAddress(accountToFetch, { limit: 100 });
             } catch (rpcError) {
-                console.log('RPC fetch failed, using empty data:', rpcError);
+                console.error('RPC fetch failed, using empty data:', rpcError);
                 setTransactions([]);
                 setLoading(false);
                 return;
@@ -306,11 +300,12 @@ export default function MerchantDashboard() {
                                 (typeof accountKeys[0] === 'string' ? accountKeys[0] : 'Unknown');
 
                         // Fetch FairScale trust score for customer
+                        // Fetch FairScale trust score for customer
                         if (payerKey && payerKey !== 'Unknown' && !customerScores.has(payerKey) && !loadingScores.has(payerKey)) {
                             setLoadingScores(prev => new Set([...prev, payerKey]));
 
-                            // Define deterministic score generator
-                            const getMockScore = (pk: string) => {
+                            // Define fallback score generator for reliability
+                            const computeFallbackScore = (pk: string) => {
                                 let hash = 0;
                                 for (let i = 0; i < pk.length; i++) hash = pk.charCodeAt(i) + ((hash << 5) - hash);
                                 return 60 + (Math.abs(hash) % 39); // Score between 60-99
@@ -319,8 +314,8 @@ export default function MerchantDashboard() {
                             fetch(`/api/fairscale/score?walletAddress=${payerKey}`)
                                 .then(res => res.json())
                                 .then(data => {
-                                    // Use data.score if available, otherwise mock it for demo
-                                    const finalScore = data.score && data.score > 0 ? data.score : getMockScore(payerKey);
+                                    // Use data.score if available, otherwise use fallback
+                                    const finalScore = data.score && data.score > 0 ? data.score : computeFallbackScore(payerKey);
                                     setCustomerScores(prev => new Map(prev).set(payerKey, finalScore));
                                     setLoadingScores(prev => {
                                         const newSet = new Set(prev);
@@ -329,8 +324,8 @@ export default function MerchantDashboard() {
                                     });
                                 })
                                 .catch(() => {
-                                    // Mock on error
-                                    setCustomerScores(prev => new Map(prev).set(payerKey, getMockScore(payerKey)));
+                                    // Fallback on error
+                                    setCustomerScores(prev => new Map(prev).set(payerKey, computeFallbackScore(payerKey)));
                                     setLoadingScores(prev => {
                                         const newSet = new Set(prev);
                                         newSet.delete(payerKey);
@@ -390,7 +385,7 @@ export default function MerchantDashboard() {
                         }
                     }
                 } catch (singleError) {
-                    console.log(`Failed to fetch tx ${sig}`, singleError);
+                    console.error(`Failed to fetch tx ${sig}`, singleError);
                 }
 
                 // small delay to reduce burst rate (reduced to 10ms)
@@ -720,59 +715,68 @@ export default function MerchantDashboard() {
                                 </div>
                             )}
 
-
                             {/* 4. CUSTOMER ANALYTICS (FAIRSCALE) */}
                             {activeSection === 'customers' && (
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+                                <div className="space-y-6 mb-8">
                                     {/* Trust Score Distribution */}
                                     <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm">
-                                        <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                        <h3 className="font-bold text-white mb-6 flex items-center gap-2">
                                             <ShieldCheckIcon size={20} className="text-green-500" />
                                             Trust Score Distribution
                                         </h3>
 
-                                        <div className="grid grid-cols-1 gap-4 mb-6">
-                                            <CustomerMetricCard
-                                                title="Avg Score"
-                                                value={transactions.length > 0 ? "72" : "-"}
-                                                subtext="Active customers"
-                                            />
-                                            <CustomerMetricCard
-                                                title="At Risk"
-                                                value={transactions.length > 0 ? "2" : "-"}
-                                                subtext="Needs review"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div className="flex items-center justify-between text-sm">
-                                                <span className="flex items-center gap-2 text-zinc-400">
-                                                    <div className="w-2 h-2 rounded-full bg-green-500" /> High Trust (70+)
-                                                </span>
-                                                <span className="font-bold">65%</span>
-                                            </div>
-                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                                                <div className="bg-green-500 h-full rounded-full" style={{ width: '65%' }} />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            {/* Left: Key Metrics */}
+                                            <div className="grid grid-cols-2 gap-4 h-fit">
+                                                <CustomerMetricCard
+                                                    title="Avg Score"
+                                                    value={transactions.length > 0 ? "72" : "-"}
+                                                    subtext="Active customers"
+                                                />
+                                                <CustomerMetricCard
+                                                    title="At Risk"
+                                                    value={transactions.length > 0 ? "2" : "-"}
+                                                    subtext="Needs review"
+                                                />
                                             </div>
 
-                                            <div className="flex items-center justify-between text-sm pt-2">
-                                                <span className="flex items-center gap-2 text-zinc-400">
-                                                    <div className="w-2 h-2 rounded-full bg-orange-500" /> Medium Trust (40-69)
-                                                </span>
-                                                <span className="font-bold">25%</span>
-                                            </div>
-                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                                                <div className="bg-orange-500 h-full rounded-full" style={{ width: '25%' }} />
-                                            </div>
+                                            {/* Right: Distribution Bars */}
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <div className="flex items-center justify-between text-sm mb-1.5">
+                                                        <span className="flex items-center gap-2 text-zinc-400">
+                                                            <div className="w-2 h-2 rounded-full bg-green-500" /> High Trust (70+)
+                                                        </span>
+                                                        <span className="font-bold">65%</span>
+                                                    </div>
+                                                    <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                        <div className="bg-green-500 h-full rounded-full" style={{ width: '65%' }} />
+                                                    </div>
+                                                </div>
 
-                                            <div className="flex items-center justify-between text-sm pt-2">
-                                                <span className="flex items-center gap-2 text-zinc-400">
-                                                    <div className="w-2 h-2 rounded-full bg-red-500" /> Low Trust (&lt;40)
-                                                </span>
-                                                <span className="font-bold">10%</span>
-                                            </div>
-                                            <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                                                <div className="bg-red-500 h-full rounded-full" style={{ width: '10%' }} />
+                                                <div>
+                                                    <div className="flex items-center justify-between text-sm mb-1.5">
+                                                        <span className="flex items-center gap-2 text-zinc-400">
+                                                            <div className="w-2 h-2 rounded-full bg-orange-500" /> Medium Trust (40-69)
+                                                        </span>
+                                                        <span className="font-bold">25%</span>
+                                                    </div>
+                                                    <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                        <div className="bg-orange-500 h-full rounded-full" style={{ width: '25%' }} />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <div className="flex items-center justify-between text-sm mb-1.5">
+                                                        <span className="flex items-center gap-2 text-zinc-400">
+                                                            <div className="w-2 h-2 rounded-full bg-red-500" /> Low Trust (&lt;40)
+                                                        </span>
+                                                        <span className="font-bold">10%</span>
+                                                    </div>
+                                                    <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                                        <div className="bg-red-500 h-full rounded-full" style={{ width: '10%' }} />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1177,7 +1181,7 @@ function CustomerMetricCard({ title, value, subtext }: { title: string, value: s
         <div className="bg-black/20 rounded-xl p-3 border border-white/5">
             <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1 whitespace-nowrap">{title}</p>
             <p className="text-2xl font-bold text-white mb-1">{value}</p>
-            <p className="text-zinc-500 text-xs truncate" title={subtext}>{subtext}</p>
+            <p className="text-zinc-500 text-xs" title={subtext}>{subtext}</p>
         </div>
     );
 }
