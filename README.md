@@ -343,6 +343,8 @@ if (pot.balance >= 500) {
 
 **Deployed URL:** [https://cadpay.vercel.app/](https://cadpay.vercel.app/)
 
+> **💡 Pro Tip:** For the best experience, open the demo in **Incognito Mode / Private Window**. This ensures a fresh session for creating your passkey wallet and prevents conflicts with existing browser extensions.
+
 **Test the Flow:**
 1. Create a passkey wallet (works on any WebAuthn device)
 2. Check your auto-assigned FairScale mock score
