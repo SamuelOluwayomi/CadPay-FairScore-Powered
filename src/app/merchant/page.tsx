@@ -6,7 +6,7 @@ import {
     WalletIcon, TrendUpIcon, UsersIcon, LightningIcon, CopyIcon, CheckIcon, StorefrontIcon,
     ReceiptIcon, ChartPieIcon, KeyIcon, ShieldCheckIcon, CaretRightIcon, ArrowLeftIcon,
     EyeIcon, EyeSlashIcon, PlusIcon, XIcon, ListIcon, ArrowsClockwise as ArrowsClockwiseIcon,
-    Cards as CardsIcon
+    Cards as CardsIcon, ArrowSquareOut
 } from '@phosphor-icons/react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -723,7 +723,7 @@ export default function MerchantDashboard() {
 
                             {/* 4. CUSTOMER ANALYTICS (FAIRSCALE) */}
                             {activeSection === 'customers' && (
-                                <div className="grid md:grid-cols-2 gap-6 mb-8">
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
                                     {/* Trust Score Distribution */}
                                     <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm">
                                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
@@ -832,6 +832,17 @@ export default function MerchantDashboard() {
                                                 >
                                                     <ArrowsClockwiseIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                                                 </button>
+
+                                                <a
+                                                    href={`https://explorer.solana.com/address/${merchant.walletPublicKey}?cluster=devnet`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/10 transition-colors ml-2"
+                                                >
+                                                    <span className="hidden sm:inline">View on Network</span>
+                                                    <span className="sm:hidden">Explorer</span>
+                                                    <ArrowSquareOut size={14} />
+                                                </a>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -1163,10 +1174,10 @@ function TrustScoreBadge({ walletAddress, score, loading }: { walletAddress?: st
 
 function CustomerMetricCard({ title, value, subtext }: { title: string, value: string, subtext: string }) {
     return (
-        <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-            <p className="text-zinc-500 text-xs uppercase font-bold tracking-wider mb-1">{title}</p>
+        <div className="bg-black/20 rounded-xl p-3 border border-white/5">
+            <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1 whitespace-nowrap">{title}</p>
             <p className="text-2xl font-bold text-white mb-1">{value}</p>
-            <p className="text-zinc-500 text-xs">{subtext}</p>
+            <p className="text-zinc-500 text-xs truncate" title={subtext}>{subtext}</p>
         </div>
     );
 }

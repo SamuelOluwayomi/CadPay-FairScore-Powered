@@ -1,7 +1,6 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
 import TrustScore from '@/components/security/TrustScore';
 
 export default function FairScoreSection() {
