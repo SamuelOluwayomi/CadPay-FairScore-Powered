@@ -599,6 +599,7 @@ export default function MerchantDashboard() {
                                     trend={merchant.email === 'admin@gmail.com' ? "+12%" : "+0%"}
                                     icon={<TrendUpIcon size={24} className="text-green-400" />}
                                     color="green"
+                                    loading={loading}
                                 />
                                 <MetricCard
                                     title="Total Customers"
@@ -606,6 +607,7 @@ export default function MerchantDashboard() {
                                     trend={merchant.email === 'admin@gmail.com' ? "+42 new" : "+0 new"}
                                     icon={<UsersIcon size={24} className="text-blue-400" />}
                                     color="blue"
+                                    loading={loading}
                                 />
                                 <MetricCard
                                     title="Monthly Recurring (MRR)"
@@ -613,6 +615,7 @@ export default function MerchantDashboard() {
                                     trend={merchant.email === 'admin@gmail.com' ? "+8%" : "+0%"}
                                     icon={<ReceiptIcon size={24} className="text-purple-400" />}
                                     color="purple"
+                                    loading={loading}
                                 />
                                 <MetricCard
                                     title="Gas Subsidized (The Flex)"
@@ -621,6 +624,7 @@ export default function MerchantDashboard() {
                                     icon={<LightningIcon size={24} className="text-orange-400 fill-orange-400" />}
                                     color="orange"
                                     subtext="You saved users this much!"
+                                    loading={loading}
                                 />
                             </div>
                         )}
@@ -656,14 +660,21 @@ export default function MerchantDashboard() {
                                                 />
                                             </PieChart>
                                         </ResponsiveContainer>
-                                        {/* Center Text */}
+                                        {/* Center Text or Loading Spinner */}
                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                            <div className="text-center">
-                                                <span className="block text-zinc-500 text-xs">Total</span>
-                                                <span className="block text-xl font-bold text-white">
-                                                    ${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                </span>
-                                            </div>
+                                            {loading ? (
+                                                <div className="flex flex-col items-center">
+                                                    <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mb-2" />
+                                                    <span className="text-xs text-zinc-600 font-medium">Fetching...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <span className="block text-zinc-500 text-xs">Total</span>
+                                                    <span className="block text-xl font-bold text-white">
+                                                        ${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -1193,29 +1204,36 @@ function CustomerMetricCard({ title, value, subtext }: { title: string, value: s
     );
 }
 
-function MetricCard({ title, value, trend, icon, color, subtext }: { title: string, value: string, trend: string, icon: any, color: 'green' | 'blue' | 'purple' | 'orange', subtext?: string }) {
-    const colors: Record<string, string> = {
-        green: 'bg-green-500/10 text-green-400 border-green-500/20',
-        blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-        purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-        orange: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    };
+interface MetricCardProps {
+    title: string;
+    value: string;
+    trend: string;
+    icon: React.ReactNode;
+    color: string;
+    subtext?: string;
+    loading?: boolean;
+}
 
+function MetricCard({ title, value, trend, icon, color, subtext, loading }: MetricCardProps) {
     return (
-        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-colors">
-            <div className="flex justify-between items-start mb-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colors[color]}`}>
+        <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-sm hover:border-white/20 transition-all group">
+            <div className="flex items-start justify-between mb-4">
+                <div className={`p-3 rounded-2xl bg-${color}-500/10 group-hover:scale-110 transition-transform`}>
                     {icon}
                 </div>
-                <span className="text-xs font-medium bg-white/5 px-2 py-1 rounded-full text-zinc-400">
-                    {trend}
-                </span>
+                {!loading && (
+                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${trend.includes('+') ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                        {trend}
+                    </div>
+                )}
             </div>
-            <div>
-                <p className="text-zinc-500 text-xs font-medium mb-1">{title}</p>
-                <h3 className="text-2xl font-bold text-white">{value}</h3>
-                {subtext && <p className="text-xs text-zinc-500 mt-1">{subtext}</p>}
-            </div>
+            <p className="text-zinc-500 text-sm font-medium mb-1">{title}</p>
+            {loading ? (
+                <div className="h-8 w-24 bg-white/10 rounded animate-pulse my-1" />
+            ) : (
+                <h3 className="text-3xl font-bold text-white mb-1">{value}</h3>
+            )}
+            {subtext && <p className="text-xs text-zinc-500">{subtext}</p>}
         </div>
     );
 }
