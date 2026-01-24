@@ -103,11 +103,20 @@ export default function MerchantDashboard() {
         if (!merchant) return;
 
         // RESET Metrics to prevent accumulation on re-fetch
-        setTotalRevenue(0);
-        setMrr(0);
-        setGasSaved(0);
-        setTxCount(0);
-        seenPayers.current.clear();
+        // setTotalRevenue(0); // REMOVED: Don't zero out to prevent flicker
+        // setMrr(0);
+        // setGasSaved(0);
+        // setTxCount(0);
+        // seenPayers.current.clear(); // Keep seenPayers for strict uniqueness if needed, or clear locally below
+
+        // Local variables for accumulation (prevents UI flicker)
+        let tempTotalRevenue = 0;
+        let tempMrr = 0;
+        let tempGasSaved = 0;
+        let tempTxCount = 0;
+        const tempSeenPayers = new Set<string>();
+        let tempChartData: any[] = [];
+        const processedTransactions: any[] = [];
 
         try {
             // Use specific Token Account for Demo, otherwise User Wallet
@@ -159,18 +168,7 @@ export default function MerchantDashboard() {
                 return;
             }
 
-            // 1. IMPROVEMENT: Show skeletons/placeholders immediately
-            const placeholders = signatures.map(s => ({
-                id: s.signature,
-                customer: 'Loading...',
-                amount: 0,
-                memo: 'Scanning...',
-                date: s.blockTime ? new Date(s.blockTime * 1000).toLocaleString() : 'Pending',
-                status: 'loading',
-                service: { name: '...', color: '#27272a' }
-            }));
-            setTransactions(placeholders);
-            setLoading(false); // Unblock UI immediately
+            setLoading(false); // Unblock UI immediately if first load
 
             const txIds = signatures.map(s => s.signature);
             const txMap = new Map();
@@ -335,53 +333,43 @@ export default function MerchantDashboard() {
                         }
 
                         // Update State for this specific transaction
-                        setTransactions(prev => prev.map(item => {
-                            if (item.id === sig) {
-                                return {
-                                    ...item,
-                                    customer: payerKey.slice(0, 4) + '...' + payerKey.slice(-4),
-                                    customerFull: payerKey,
-                                    amount: amount,
-                                    memo: memoText,
-                                    status: 'success',
-                                    service: {
-                                        name: memoText || 'Subscription',
-                                        color: finalColor
-                                    }
-                                };
+                        // Update State for this specific transaction
+                        processedTransactions.push({
+                            id: sig,
+                            customer: payerKey.slice(0, 4) + '...' + payerKey.slice(-4),
+                            customerFull: payerKey,
+                            amount: amount,
+                            memo: memoText,
+                            date: single?.blockTime ? new Date(single.blockTime * 1000).toLocaleString() : 'Recent', // fixed date
+                            status: 'success',
+                            service: {
+                                name: memoText || 'Subscription',
+                                color: finalColor
                             }
-                            return item;
-                        }));
+                        });
 
-                        // Update Metrics Incrementally
+                        // Update Metrics Incrementally (Locally)
                         if (amount > 0) {
                             const realRevenue = amount;
-                            setTotalRevenue(prev => prev + realRevenue);
-                            setMrr(prev => prev + realRevenue);
+                            tempTotalRevenue += realRevenue;
+                            tempMrr += realRevenue;
 
                             // Ensure unique customer count
-                            if (!seenPayers.current.has(payerKey)) {
-                                seenPayers.current.add(payerKey);
-                                setTxCount(prev => prev + 1);
+                            if (!tempSeenPayers.has(payerKey)) {
+                                tempSeenPayers.add(payerKey);
+                                tempTxCount += 1;
                             }
 
-                            setGasSaved(prev => prev + 0.000005);
+                            tempGasSaved += 0.000005;
 
-                            // Update Chart Incrementally
-                            setChartData(prevData => {
-                                const sName = memoText || 'Subscription';
-                                // Remove 'No Data' if it exists
-                                const cleanData = prevData.filter(d => d.name !== 'No Data');
-
-                                const existingIndex = cleanData.findIndex(d => d.name === sName);
-                                const newD = [...cleanData];
-                                if (existingIndex >= 0) {
-                                    newD[existingIndex] = { ...newD[existingIndex], value: newD[existingIndex].value + amount };
-                                } else {
-                                    newD.push({ name: sName, value: amount, color: finalColor });
-                                }
-                                return newD;
-                            });
+                            // Update Chart Locally
+                            const sName = memoText || 'Subscription';
+                            const existingIndex = tempChartData.findIndex(d => d.name === sName);
+                            if (existingIndex >= 0) {
+                                tempChartData[existingIndex].value += amount;
+                            } else {
+                                tempChartData.push({ name: sName, value: amount, color: finalColor });
+                            }
                         }
                     }
                 } catch (singleError) {
@@ -389,9 +377,22 @@ export default function MerchantDashboard() {
                 }
 
                 // small delay to reduce burst rate (reduced to 10ms)
-                if (i + 1 < txIds.length) await new Promise(resolve => setTimeout(resolve, 10));
+                if (i + 1 < txIds.length) await new Promise(resolve => setTimeout(resolve, 5));
             }
-            // End of loop
+
+            // FINAL UPDATE: Commit all changes to state at once
+            setTransactions(processedTransactions);
+            setTotalRevenue(tempTotalRevenue);
+            setMrr(tempMrr);
+            setTxCount(tempTxCount);
+            setGasSaved(tempGasSaved);
+
+            // Fix Chart Data: If empty, show "No Data"
+            if (tempChartData.length === 0) {
+                setChartData(initialChartData);
+            } else {
+                setChartData(tempChartData);
+            }
 
         } catch (error) {
             console.error("Error fetching merchant history:", error);
