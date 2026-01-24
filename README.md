@@ -221,30 +221,23 @@ npm start
 
 ### 2. Merchant Features
 
-#### Admin Access (No Wallet Required!)
-**Demo Login Credentials:**
-- Email: `demo@cadpay.xyz`
-- Password: `admin123`
-- **No Lazorkit popup** - bypasses wallet authentication
-- Pre-loaded with demo transaction data
+### 2. Merchant Features
 
-**What You Can Do:**
-1. **View Live Transactions**: Real-time ledger of all payments
-2. **Revenue Analytics**:
-   - Total revenue (from actual transfer amounts)
-   - MRR calculation based on subscriptions
-   - Revenue split chart by service
-3. **Customer Metrics**: Count unique wallet addresses
-4. **Service Management**: View which services have FairScale trust gates
+The Merchant Portal offers two distinct login modes to serve both demo judges and real users:
 
-#### Creating Merchant Account (With Wallet)
-For non-demo merchants who want their own wallet:
-1. Go to `/merchant-auth`
-2. Click "Create Account" tab
-3. Enter business name, email, password
-4. **Lazorkit popup appears** - create passkey wallet
-5. Account created with associated wallet
-6. Can receive payments to wallet address
+#### 1️⃣ Option A: Admin Access (Demo Mode)
+> **Best for Judges & Quick Testing**
+- **No Wallet Required:** Bypasses Lazorkit authentication entirely.
+- **Pre-filled Credentials:** Just click "Admin (Demo)" tab and hit login.
+- **Functionality:** View full dashboard analytics, live transaction feeds, and FairScale trust scores.
+- **Why?** Allows you to inspect the "Merchant View" (Revenue, MRR, Trust Data) instantly without creating a second passkey wallet.
+
+#### 2️⃣ Option B: Merchant Login (Live Mode)
+> **Best for Integration Testing**
+- **Wallet Required:** Uses Lazorkit Account Abstraction (Passkeys).
+- **Real On-Chain Identity:** Creates a verifiable merchant wallet on Solana.
+- **Functionality:** Create new subscription plans, receive real USDC funds, and manage savings.
+- **Why?** Demonstrates the actual ease-of-use for a business onboarding to Solana.
 
 ### 3. FairScale Integration
 
@@ -341,7 +334,7 @@ if (pot.balance >= 500) {
 
 ## 🌐 Live Demo
 
-**Deployed URL:** [https://cadpay.vercel.app/](https://cadpay.vercel.app/)
+**Deployed URL:** [https://cadpayfairscore.vercel.app/]
 
 > **💡 Pro Tip:** For the best experience, open the demo in **Incognito Mode / Private Window**. This ensures a fresh session for creating your passkey wallet and prevents conflicts with existing browser extensions.
 

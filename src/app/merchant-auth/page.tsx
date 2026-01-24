@@ -17,9 +17,24 @@ export default function MerchantAuthPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    const [loginMode, setLoginMode] = useState<'admin' | 'merchant'>('admin'); // Default to Admin for easy demo access
+
     const router = useRouter();
     const { createMerchant, loginMerchant } = useMerchant();
     const { createPasskeyWallet, loginWithPasskey, isAuthenticated, address } = useLazorkit();
+
+    // Auto-fill admin credentials when switching to admin mode
+    const handleModeSwitch = (mode: 'admin' | 'merchant') => {
+        setLoginMode(mode);
+        if (mode === 'admin') {
+            setIsSignup(false);
+            setEmail('demo@cadpay.xyz');
+            setPassword('admin123');
+        } else {
+            setEmail('');
+            setPassword('');
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,17 +43,21 @@ export default function MerchantAuthPage() {
 
         try {
             // ADMIN LOGIN: Check for demo credentials FIRST (bypass wallet entirely)
-            const isDemoLogin = email === 'demo@cadpay.xyz' && !isSignup;
+            if (loginMode === 'admin') {
+                const isDemoLogin = email === 'demo@cadpay.xyz';
 
-            if (isDemoLogin) {
-                // Admin login - no wallet needed
-                const success = await loginMerchant(email, password);
-                if (!success) {
-                    throw new Error("Invalid admin credentials");
+                if (isDemoLogin) {
+                    // Admin login - no wallet needed
+                    const success = await loginMerchant(email, password);
+                    if (!success) {
+                        throw new Error("Invalid admin credentials");
+                    }
+                    // Redirect to merchant dashboard
+                    router.push('/merchant');
+                    return;
+                } else {
+                    throw new Error("Only specific admin accounts can use this mode.");
                 }
-                // Redirect to merchant dashboard
-                router.push('/merchant');
-                return; // Early return - skip wallet connection
             }
 
             // REGULAR MERCHANT: Ensure wallet connection for non-admin accounts
@@ -108,25 +127,44 @@ export default function MerchantAuthPage() {
                 </div>
 
                 <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-xl">
+
+                    {/* MODE SWITCHER */}
                     <div className="flex bg-black/40 p-1 rounded-xl mb-6">
                         <button
-                            onClick={() => setIsSignup(false)}
-                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!isSignup ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
+                            onClick={() => handleModeSwitch('admin')}
+                            className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${loginMode === 'admin' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
                                 }`}
                         >
-                            Log In
+                            Admin (Demo)
                         </button>
                         <button
-                            onClick={() => setIsSignup(true)}
-                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${isSignup ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
+                            onClick={() => handleModeSwitch('merchant')}
+                            className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${loginMode === 'merchant' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
                                 }`}
                         >
-                            Create Account
+                            Merchant Login
                         </button>
                     </div>
 
+                    {loginMode === 'merchant' && (
+                        <div className="flex bg-black/40 p-1 rounded-xl mb-6 scale-90 opacity-80">
+                            <button
+                                onClick={() => setIsSignup(false)}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${!isSignup ? 'bg-zinc-700 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                Sign In
+                            </button>
+                            <button
+                                onClick={() => setIsSignup(true)}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${isSignup ? 'bg-zinc-700 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                Register
+                            </button>
+                        </div>
+                    )}
+
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        {isSignup && (
+                        {isSignup && loginMode === 'merchant' && (
                             <div>
                                 <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Business Name</label>
                                 <div className="relative">
@@ -153,6 +191,7 @@ export default function MerchantAuthPage() {
                                     placeholder="founder@startup.com"
                                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 pl-11 text-white focus:border-orange-500/50 focus:outline-none transition-colors"
                                     required
+                                    readOnly={loginMode === 'admin'} // Lock for admin demo
                                 />
                                 <UserCircleIcon size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
                             </div>
@@ -168,10 +207,23 @@ export default function MerchantAuthPage() {
                                     placeholder="••••••••"
                                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 pl-11 text-white focus:border-orange-500/50 focus:outline-none transition-colors"
                                     required
+                                    readOnly={loginMode === 'admin'}
                                 />
                                 <LockKeyIcon size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
                             </div>
                         </div>
+
+                        {loginMode === 'admin' && (
+                            <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center gap-3">
+                                <div className="p-1.5 bg-orange-500 rounded-lg text-black">
+                                    <StorefrontIcon weight="bold" />
+                                </div>
+                                <div className="text-xs text-orange-200">
+                                    <p className="font-bold">Demo Access</p>
+                                    <p className="opacity-70">No wallet signature required.</p>
+                                </div>
+                            </div>
+                        )}
 
                         {error && (
                             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm font-medium text-center">
@@ -188,7 +240,7 @@ export default function MerchantAuthPage() {
                                 <SpinnerIcon size={20} className="animate-spin" />
                             ) : (
                                 <>
-                                    {isSignup ? "Generate Wallet & Join" : "Access Dashboard"}
+                                    {loginMode === 'admin' ? "Login to Demo" : (isSignup ? "Generate Wallet & Join" : "Access Dashboard")}
                                     <ArrowRightIcon size={18} weight="bold" />
                                 </>
                             )}
@@ -196,7 +248,7 @@ export default function MerchantAuthPage() {
                     </form>
                 </div>
 
-                {isSignup && (
+                {isSignup && loginMode === 'merchant' && (
                     <p className="text-center text-xs text-zinc-500 mt-6">
                         By joining, a new Solana wallet will be automatically created <br /> for your business to receive USDC payments.
                     </p>
