@@ -135,7 +135,7 @@ export default function MerchantAuthPage() {
                             className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${loginMode === 'admin' ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
                                 }`}
                         >
-                            Admin (Demo)
+                            Admin Merchant
                         </button>
                         <button
                             onClick={() => handleModeSwitch('merchant')}
