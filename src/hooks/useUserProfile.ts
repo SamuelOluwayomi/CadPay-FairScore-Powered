@@ -3,8 +3,10 @@ import { useWallet } from '@lazorkit/wallet';
 import * as anchor from '@coral-xyz/anchor';
 import { Program, Idl } from '@coral-xyz/anchor';
 
-// Use anchor.web3 instead of root web3 to avoid 'instanceof' / version mismatch errors
+// Use anchor.web3 for common types to match Anchor's expected types, but Polyfill v0 from root
+// This avoids "VersionedTransaction is undefined" if Anchor's re-export is incomplete
 const { Connection, PublicKey, SystemProgram, Transaction } = anchor.web3;
+import { TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 
 const PROGRAM_ID_STR = "6VvJbGzNHbtZLWxmLTYPpRz2F3oMDxdL1YRgV3b51Ccz";
 const DEVNET_RPC = process.env.NEXT_PUBLIC_RPC_URL || 'https://api.devnet.solana.com';
@@ -227,8 +229,6 @@ export function useUserProfile() {
         try {
             const userPubkey = new PublicKey(smartWalletPubkey.toString());
 
-            // Background funding likely handled it already. 
-            // We skip blocking check to ensure instant transaction signing.
             const [profilePda] = PublicKey.findProgramAddressSync(
                 [Buffer.from("user-profile-v1"), userPubkey.toBuffer()],
                 new PublicKey(PROGRAM_ID_STR)
@@ -239,15 +239,12 @@ export function useUserProfile() {
                 // @ts-ignore
                 const existing = await program.account.userProfile.fetchNullable(profilePda);
                 if (existing) {
-                    // If a profile already exists, call update flow instead of init
                     return await updateProfile(username, emoji, gender, pin);
                 }
             } catch (e) {
-                // If fetchNullable fails for an unexpected reason, log and continue
                 console.warn('Could not fetch profile account; proceeding to initialize', e);
             }
 
-            // Convert strings to fixed-size byte arrays for MAXIMUM TRANSCTION COMPRESSION
             const usernameBytes = encodeString(username, 16);
             const emojiBytes = encodeString(emoji, 4);
             const genderBytes = encodeString(gender, 8);
@@ -262,17 +259,22 @@ export function useUserProfile() {
                 } as any)
                 .instruction();
 
-            const tx = new Transaction().add(instruction);
-            tx.feePayer = userPubkey;
+            // USE VERSIONED TRANSACTION (v0) TO SAVE SPACE
+            // "Transaction too large" fix
+            const latestBlockhash = await connection.getLatestBlockhash();
+            const messageV0 = new TransactionMessage({
+                payerKey: userPubkey,
+                recentBlockhash: latestBlockhash.blockhash,
+                instructions: [instruction],
+            }).compileToV0Message();
 
-            // Don't set blockhash manually - Lazorkit's signAndSendTransaction handles it
-            // Setting it here can cause "TransactionTooOld" errors if there's any delay
-            // Lazorkit will fetch a fresh blockhash when signing
+            const tx = new VersionedTransaction(messageV0);
 
+            // Sign and send using Lazorkit
             const signature = await signAndSendTransaction(tx);
             console.log("Transaction sent, awaiting confirmation...", signature);
 
-            // OPTIMISTIC UPDATE: Set profile state immediately to hide onboarding modal
+            // OPTIMISTIC UPDATE
             setProfile({
                 username,
                 emoji,
@@ -280,22 +282,19 @@ export function useUserProfile() {
                 pin,
                 authority: userPubkey
             });
-
-            // Set local flag immediately for optimistic UX
             localStorage.setItem(`cadpay_profile_exists_${smartWalletPubkey.toString()}`, 'true');
 
             // Try to confirm the signature quickly
             try {
-                const latest = await connection.getLatestBlockhash();
                 await connection.confirmTransaction({
                     signature,
-                    ...latest
+                    ...latestBlockhash
                 }, 'confirmed');
             } catch (e) {
-                // ignore - we will poll for the account instead
+                // ignore
             }
 
-            // Poll aggressively for account presence (every 800ms)
+            // Poll for account presence
             const maxAttempts = 20;
             let found = false;
             for (let i = 0; i < maxAttempts; i++) {
@@ -307,7 +306,7 @@ export function useUserProfile() {
                         break;
                     }
                 } catch (e) {
-                    // ignore and backoff
+                    // ignore
                 }
                 await new Promise(resolve => setTimeout(resolve, 800));
             }
@@ -316,7 +315,6 @@ export function useUserProfile() {
                 console.warn('Profile not visible on-chain after waiting; but trusting optimistic update');
             }
 
-            // Refresh local cache
             await fetchProfile();
             return signature;
         } catch (err: any) {
@@ -352,12 +350,15 @@ export function useUserProfile() {
                 } as any)
                 .instruction();
 
-            const tx = new Transaction().add(instruction);
-            tx.feePayer = userPubkey;
+            // USE VERSIONED TRANSACTION (v0) TO SAVE SPACE
+            const latestBlockhash = await connection.getLatestBlockhash();
+            const messageV0 = new TransactionMessage({
+                payerKey: userPubkey,
+                recentBlockhash: latestBlockhash.blockhash,
+                instructions: [instruction],
+            }).compileToV0Message();
 
-            // Don't set blockhash manually - Lazorkit's signAndSendTransaction handles it
-            // Setting it here can cause "TransactionTooOld" errors if there's any delay
-            // Lazorkit will fetch a fresh blockhash when signing
+            const tx = new VersionedTransaction(messageV0);
 
             await signAndSendTransaction(tx);
             await fetchProfile();
