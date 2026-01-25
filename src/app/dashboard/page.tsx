@@ -14,7 +14,7 @@ import {
 } from '@phosphor-icons/react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import LogoField from '@/components/shared/LogoField';
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { SERVICES, CATEGORIES, Service, SubscriptionPlan } from '@/data/subscriptions';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import ServiceCard from '@/components/subscriptions/ServiceCard';
@@ -185,9 +185,8 @@ export default function Dashboard() {
         }
 
         try {
-            const tx = new Transaction();
-
             if (isSavings) {
+                // ========== PHASE 1: PRE-FLIGHT CHECKS (All delays happen here) ==========
                 // Determine pot name from address (we've stored metadata)
                 const pot = pots.find(p => p.address === recipient);
                 if (!pot) throw new Error("Saving pot not found");
@@ -340,69 +339,83 @@ export default function Dashboard() {
                     }
                 }
 
-                // For wallet-based pots, use simple token transfer; for PDA-based, use Anchor program
                 const userPubkey = new PublicKey(address);
 
+                // ========== PHASE 2: BUILD & SIGN TRANSACTION (Immediate execution) ==========
+                // All prep work is done - now build and sign immediately to ensure fresh timestamp
+
+                const instructions: TransactionInstruction[] = [];
+
                 if (isWalletBased) {
-                    // Wallet-based: Simple token transfer (no Anchor program needed)
-                    const transferIx = createTransferInstruction(
-                        userAta,
-                        potAta,
-                        userPubkey,
-                        rawAmount
-                    );
-                    tx.add(transferIx);
+                    // Wallet-based: Simple token transfer (smallest instruction size)
+                    instructions.push(createTransferInstruction(userAta, potAta, userPubkey, rawAmount));
                 } else {
-                    // PDA-based: Use Anchor program for deposit
+                    // PDA-based: Use Anchor program
                     const provider = new AnchorProvider(connection, (wallet as any), {});
                     const program = new Program(idl as any, provider);
+                    const depositAmount = new BN(rawAmount);
 
-                    // Ensure BN is properly imported and amount is valid
-                    let depositAmount;
-                    try {
-                        depositAmount = new BN(rawAmount);
-                        if (!depositAmount || (depositAmount as any)._bn === undefined) {
-                            depositAmount = new BN(rawAmount.toString());
-                        }
-                    } catch (bnError: any) {
-                        throw new Error(`Failed to create BN: ${bnError?.message || 'Unknown error'}`);
-                    }
-
-                    let depositIx;
-                    try {
-                        depositIx = await program.methods
-                            .depositToPot(depositAmount)
-                            .accounts({
-                                savingsPot: potAddress,
-                                user: userPubkey,
-                                userAta: userAta,
-                                potAta: potAta,
-                                tokenProgram: TOKEN_PROGRAM_ID,
-                            })
-                            .instruction();
-                    } catch (ixError: any) {
-                        throw new Error(`Failed to create deposit instruction: ${ixError?.message || 'Unknown error'}`);
-                    }
-                    tx.add(depositIx);
+                    const depositIx = await program.methods
+                        .depositToPot(depositAmount)
+                        .accounts({
+                            savingsPot: potAddress,
+                            user: userPubkey,
+                            userAta: userAta,
+                            potAta: potAta,
+                            tokenProgram: TOKEN_PROGRAM_ID,
+                        })
+                        .instruction();
+                    instructions.push(depositIx);
                 }
 
-                // Add memo with STRICT 20-character limit to minimize transaction size
-                // Each character = ~1 byte, so 20 chars + overhead = ~25 bytes total
-                if (memo && memo.trim().length > 0) {
-                    const trimmedMemo = memo.trim().slice(0, 20); // Hard limit at 20 characters
-                    try {
-                        const memoIx = createMemoInstruction(trimmedMemo, [userPubkey]);
-                        tx.add(memoIx);
-                    } catch (memoError: any) {
-                        // If memo fails, log but don't fail the transaction
-                        console.warn('Failed to add memo instruction:', memoError);
-                    }
+                // REMOVED MEMO for savings deposits to reduce transaction size
+                // Memo adds ~50-80 bytes which pushes us over the 1232 byte limit
+
+                // Fetch Address Lookup Table for compression
+                let lookupTableAccount = null;
+                try {
+                    const lookupTableAddress = new PublicKey(process.env.NEXT_PUBLIC_LOOKUP_TABLE_ADDRESS || '3yf26dUdvL6TYbRbvpCvdWU8JjL6AwjuXMcYiigmAB2D');
+                    const lookupTableResult = await connection.getAddressLookupTable(lookupTableAddress);
+                    lookupTableAccount = lookupTableResult.value;
+                    if (lookupTableAccount) console.log("✅ Using ALT for compression:", lookupTableAddress.toBase58());
+                } catch (altError) {
+                    console.warn('Failed to fetch Address Lookup Table:', altError);
                 }
+
+                // Sign and send immediately (fresh timestamp!)
+                const signature = await signAndSendTransaction({
+                    instructions,
+                    transactionOptions: {
+                        computeUnitLimit: isWalletBased ? 150_000 : 250_000, // Reduced for smaller tx
+                        addressLookupTableAccounts: lookupTableAccount ? [lookupTableAccount] : undefined,
+                    }
+                });
+
+                showToast(`USDC saved successfully! Signature: ${signature.slice(0, 8)}...`, 'success');
+
+                // Wait for confirmation
+                try {
+                    await connection.confirmTransaction(signature, 'confirmed');
+                } catch (confirmError) {
+                    console.log('Transaction confirmation:', confirmError);
+                }
+
+                // Refresh UI
+                await fetchPots();
+                await refreshBalance();
+                await refetchUsdc();
+
+                setTimeout(async () => {
+                    await refetchUsdc();
+                    await refreshBalance();
+                }, 2000);
             } else {
+                // External transfer (non-savings)
+                const tx = new Transaction();
                 const transferInstructions = await constructTransferTransaction(address, amount * 1_000_000, recipient);
                 tx.add(...transferInstructions);
 
-                // Add memo for external transfers if provided (with size limit)
+                // Add memo for external transfers if provided
                 if (memo && memo.trim().length > 0 && memo.length <= 50) {
                     try {
                         const { createMemoInstruction } = await import('@solana/spl-memo');
@@ -412,59 +425,43 @@ export default function Dashboard() {
                         console.warn('Failed to add memo instruction:', memoError);
                     }
                 }
-            }
 
-            // OPTIMIZATION: Use Lazorkit's instruction-based API to reduce transaction size
-            // Extract instructions from transaction and pass directly (avoids extra serialization overhead)
-            // This is critical for smart wallets which add wrapper instructions
-            const allInstructions = tx.instructions;
+                const allInstructions = tx.instructions;
 
-            // Fetch Address Lookup Table for transaction compression (reduces account size from 32 bytes to 1 byte)
-            let lookupTableAccount = null;
-            try {
-                // Use a reliable public lookup table or the one from env
-                const lookupTableAddress = new PublicKey(process.env.NEXT_PUBLIC_LOOKUP_TABLE_ADDRESS || '3yf26dUdvL6TYbRbvpCvdWU8JjL6AwjuXMcYiigmAB2D');
-                const lookupTableResult = await connection.getAddressLookupTable(lookupTableAddress);
-                lookupTableAccount = lookupTableResult.value;
-                if (lookupTableAccount) console.log("✅ Using ALT for compression:", lookupTableAddress.toBase58());
-            } catch (altError) {
-                // ALT not critical (will fallback to large tx), but highly recommended
-                console.warn('Failed to fetch Address Lookup Table:', altError);
-            }
-
-            // Sign and send using instruction-based API (more efficient for smart wallets)
-            // This reduces transaction size by avoiding Transaction object serialization overhead
-            const signature = await signAndSendTransaction({
-                instructions: allInstructions,
-                transactionOptions: {
-                    computeUnitLimit: isSavings ? 300_000 : 400_000, // Lower limit for savings (no memo logic overhead)
-                    addressLookupTableAccounts: lookupTableAccount ? [lookupTableAccount] : undefined,
+                let lookupTableAccount = null;
+                try {
+                    const lookupTableAddress = new PublicKey(process.env.NEXT_PUBLIC_LOOKUP_TABLE_ADDRESS || '3yf26dUdvL6TYbRbvpCvdWU8JjL6AwjuXMcYiigmAB2D');
+                    const lookupTableResult = await connection.getAddressLookupTable(lookupTableAddress);
+                    lookupTableAccount = lookupTableResult.value;
+                } catch (altError) {
+                    console.warn('Failed to fetch Address Lookup Table:', altError);
                 }
-            });
 
-            showToast(`USDC ${isSavings ? 'saved' : 'sent'} successfully! Signature: ${signature.slice(0, 8)}...`, 'success');
+                const signature = await signAndSendTransaction({
+                    instructions: allInstructions,
+                    transactionOptions: {
+                        computeUnitLimit: 400_000,
+                        addressLookupTableAccounts: lookupTableAccount ? [lookupTableAccount] : undefined,
+                    }
+                });
 
-            // Wait for transaction confirmation before refreshing balance
-            try {
-                await connection.confirmTransaction(signature, 'confirmed');
-            } catch (confirmError) {
-                // Transaction might still be processing, continue anyway
-                console.log('Transaction confirmation:', confirmError);
-            }
+                showToast(`USDC sent successfully! Signature: ${signature.slice(0, 8)}...`, 'success');
 
-            // Revert Split Transaction Logic - Memo is now integrated
+                try {
+                    await connection.confirmTransaction(signature, 'confirmed');
+                } catch (confirmError) {
+                    console.log('Transaction confirmation:', confirmError);
+                }
 
-
-            // Refresh UI immediately and then again after a short delay for real-time updates
-            await fetchPots();
-            await refreshBalance();
-            await refetchUsdc();
-
-            // Additional refresh after 2 seconds to catch any delayed updates
-            setTimeout(async () => {
-                await refetchUsdc();
+                await fetchPots();
                 await refreshBalance();
-            }, 2000);
+                await refetchUsdc();
+
+                setTimeout(async () => {
+                    await refetchUsdc();
+                    await refreshBalance();
+                }, 2000);
+            }
         } catch (e: any) {
             showToast(`Transfer failed: ${e.message || 'Unknown error'}`, 'error');
             throw e;
