@@ -215,117 +215,135 @@ export function useUserProfile() {
         if (!smartWalletPubkey || !program) throw new Error("Wallet not connected");
         setLoading(true);
         setError(null);
-        try {
-            const userPubkey = new PublicKey(smartWalletPubkey.toString());
-            await checkAndAirdrop(userPubkey);
 
-            const [profilePda] = PublicKey.findProgramAddressSync(
-                [Buffer.from("user-profile-v1"), userPubkey.toBuffer()],
-                new PublicKey(PROGRAM_ID_STR)
-            );
+        // Retry logic for "TransactionTooOld" (0x1783) error
+        // This often happens on first try due to extended biometric latency
+        const maxRetries = 2;
+        let lastError: any;
 
-            // Prefer Anchor's fetchNullable to reliably detect existing PDA
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                // @ts-ignore
-                const existing = await program.account.userProfile.fetchNullable(profilePda);
-                if (existing) {
-                    // If a profile already exists, call update flow instead of init
-                    return await updateProfile(username, emoji, gender, pin);
+                if (attempt > 1) {
+                    console.log(`Retrying profile creation (Attempt ${attempt}/${maxRetries})...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Cool-off
                 }
-            } catch (e) {
-                // If fetchNullable fails for an unexpected reason, log and continue
-                console.warn('Could not fetch profile account; proceeding to initialize', e);
-            }
 
-            // Convert strings to fixed-size byte arrays for MAXIMUM TRANSCTION COMPRESSION
-            const usernameBytes = encodeString(username, 16);
-            const emojiBytes = encodeString(emoji, 4);
-            const genderBytes = encodeString(gender, 8);
-            const pinBytes = encodeString(pin, 4);
+                const userPubkey = new PublicKey(smartWalletPubkey.toString());
 
-            const instruction = await program.methods
-                .initializeUser(usernameBytes, emojiBytes, genderBytes, pinBytes)
-                .accounts({
-                    userProfile: profilePda,
-                    user: userPubkey,
-                    systemProgram: SystemProgram.programId,
-                } as any)
-                .instruction();
+                // Only airdrop on first attempt to save time, or checking is fast enough
+                if (attempt === 1) await checkAndAirdrop(userPubkey);
 
-            const tx = new Transaction().add(instruction);
-            tx.feePayer = userPubkey;
+                const [profilePda] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("user-profile-v1"), userPubkey.toBuffer()],
+                    new PublicKey(PROGRAM_ID_STR)
+                );
 
-            // Don't set blockhash manually - Lazorkit's signAndSendTransaction handles it
-            // Setting it here can cause "TransactionTooOld" errors if there's any delay
-            // Lazorkit will fetch a fresh blockhash when signing
-
-            const signature = await signAndSendTransaction(tx);
-            console.log("Transaction sent, awaiting confirmation...", signature);
-
-            // OPTIMISTIC UPDATE: Set profile state immediately to hide onboarding modal
-            setProfile({
-                username,
-                emoji,
-                gender,
-                pin,
-                authority: userPubkey
-            });
-
-            // Set local flag immediately for optimistic UX
-            localStorage.setItem(`cadpay_profile_exists_${smartWalletPubkey.toString()}`, 'true');
-
-            // Try to confirm the signature quickly
-            try {
-                const latest = await connection.getLatestBlockhash();
-                await connection.confirmTransaction({
-                    signature,
-                    ...latest
-                }, 'confirmed');
-            } catch (e) {
-                // ignore - we will poll for the account instead
-            }
-
-            // Poll aggressively for account presence (every 800ms)
-            const maxAttempts = 20;
-            let found = false;
-            for (let i = 0; i < maxAttempts; i++) {
+                // Prefer Anchor's fetchNullable to reliably detect existing PDA
                 try {
                     // @ts-ignore
-                    const existing = await program.account.userProfile.fetchNullable(profilePda, 'confirmed');
+                    const existing = await program.account.userProfile.fetchNullable(profilePda);
                     if (existing) {
-                        found = true;
-                        break;
+                        // If a profile already exists, call update flow instead of init
+                        return await updateProfile(username, emoji, gender, pin);
                     }
                 } catch (e) {
-                    // ignore and backoff
+                    console.warn('Could not fetch profile account; proceeding to initialize', e);
                 }
-                await new Promise(resolve => setTimeout(resolve, 800));
-            }
 
-            if (!found) {
-                console.warn('Profile not visible on-chain after waiting; you may need to refresh or check RPC health');
+                // Convert strings to fixed-size byte arrays for MAXIMUM TRANSCTION COMPRESSION
+                const usernameBytes = encodeString(username, 16);
+                const emojiBytes = encodeString(emoji, 4);
+                const genderBytes = encodeString(gender, 8);
+                const pinBytes = encodeString(pin, 4);
+
+                const instruction = await program.methods
+                    .initializeUser(usernameBytes, emojiBytes, genderBytes, pinBytes)
+                    .accounts({
+                        userProfile: profilePda,
+                        user: userPubkey,
+                        systemProgram: SystemProgram.programId,
+                    } as any)
+                    .instruction();
+
+                const tx = new Transaction().add(instruction);
+                tx.feePayer = userPubkey;
+
+                const signature = await signAndSendTransaction(tx);
+                console.log("Transaction sent, awaiting confirmation...", signature);
+
+                // OPTIMISTIC UPDATE: Set profile state immediately to hide onboarding modal
+                setProfile({
+                    username,
+                    emoji,
+                    gender,
+                    pin,
+                    authority: userPubkey
+                });
+
+                // Set local flag immediately for optimistic UX
+                localStorage.setItem(`cadpay_profile_exists_${smartWalletPubkey.toString()}`, 'true');
+
+                // Try to confirm the signature quickly
                 try {
-                    console.log('Debug: smartWalletPubkey=', smartWalletPubkey?.toString());
-                    console.log('Debug: profile PDA=', profilePda.toBase58());
-                    const info = await connection.getAccountInfo(profilePda);
-                    console.log('Debug: getAccountInfo(profilePda)=', info);
-                    const txDebug = await connection.getTransaction(signature, { commitment: 'confirmed' });
-                    console.log('Debug: getTransaction(signature)=', txDebug?.meta ? { err: txDebug.meta.err, logs: txDebug.meta.logMessages } : txDebug);
-                } catch (dbgErr) {
-                    console.warn('Debug logging failed', dbgErr);
+                    const latest = await connection.getLatestBlockhash();
+                    await connection.confirmTransaction({
+                        signature,
+                        ...latest
+                    }, 'confirmed');
+                } catch (e) {
+                    // ignore - we will poll for the account instead
                 }
-            }
 
-            // Refresh local cache
-            await fetchProfile();
-            return signature;
-        } catch (err: any) {
-            console.error("Error creating profile:", err);
-            setError(err.message || "Failed to create profile");
-            throw err;
-        } finally {
-            setLoading(false);
+                // Poll aggressively for account presence (every 800ms)
+                const maxAttempts = 20;
+                let found = false;
+                for (let i = 0; i < maxAttempts; i++) {
+                    try {
+                        // @ts-ignore
+                        const existing = await program.account.userProfile.fetchNullable(profilePda, 'confirmed');
+                        if (existing) {
+                            found = true;
+                            break;
+                        }
+                    } catch (e) {
+                        // ignore and backoff
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+
+                if (!found) {
+                    console.warn('Profile not visible on-chain after waiting; but trusting optimistic update');
+                }
+
+                // Refresh local cache
+                await fetchProfile();
+                return signature; // Success!
+
+            } catch (err: any) {
+                console.error(`Attempt ${attempt} failed:`, err);
+                lastError = err;
+
+                // Check for "TransactionTooOld" (0x1783 / 6019) or similar Paymaster errors
+                // Also check for "simulation failed" which wraps the inner error
+                const isStaleTx = err.message?.includes('0x1783') ||
+                    err.message?.includes('6019') ||
+                    err.message?.includes('TransactionTooOld') ||
+                    JSON.stringify(err).includes('6019');
+
+                if (isStaleTx && attempt < maxRetries) {
+                    console.warn("Caught TransactionTooOld error, retrying...");
+                    continue; // Retry loop
+                }
+
+                // If it's another error, or we're out of retries, failure is final
+                break;
+            }
         }
+
+        // If we exit the loop without returning, it means we failed
+        setLoading(false);
+        setError(lastError?.message || "Failed to create profile after retries");
+        throw lastError;
     };
 
     const updateProfile = async (username: string, emoji: string, gender: string, pin: string) => {
