@@ -3,10 +3,8 @@ import { useWallet } from '@lazorkit/wallet';
 import * as anchor from '@coral-xyz/anchor';
 import { Program, Idl } from '@coral-xyz/anchor';
 
-// Use anchor.web3 for common types to match Anchor's expected types, but Polyfill v0 from root
-// This avoids "VersionedTransaction is undefined" if Anchor's re-export is incomplete
+// Use anchor.web3 instead of root web3 to avoid 'instanceof' / version mismatch errors
 const { Connection, PublicKey, SystemProgram, Transaction } = anchor.web3;
-import { TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 
 const PROGRAM_ID_STR = "6VvJbGzNHbtZLWxmLTYPpRz2F3oMDxdL1YRgV3b51Ccz";
 const DEVNET_RPC = process.env.NEXT_PUBLIC_RPC_URL || 'https://api.devnet.solana.com';
@@ -259,19 +257,15 @@ export function useUserProfile() {
                 } as any)
                 .instruction();
 
-            // USE VERSIONED TRANSACTION (v0) TO SAVE SPACE
-            // "Transaction too large" fix
-            const latestBlockhash = await connection.getLatestBlockhash();
-            const messageV0 = new TransactionMessage({
-                payerKey: userPubkey,
-                recentBlockhash: latestBlockhash.blockhash,
+            // Correctly formatted call for Lazorkit SDK
+            // We pass 'addressLookupTableAccounts: []' to force the SDK to use VersionedTransaction (v0)
+            // This is critical to avoid "Transaction too large" errors (1232 byte limit)
+            const signature = await signAndSendTransaction({
                 instructions: [instruction],
-            }).compileToV0Message();
-
-            const tx = new VersionedTransaction(messageV0);
-
-            // Sign and send using Lazorkit
-            const signature = await signAndSendTransaction(tx);
+                transactionOptions: {
+                    addressLookupTableAccounts: []
+                }
+            });
             console.log("Transaction sent, awaiting confirmation...", signature);
 
             // OPTIMISTIC UPDATE
@@ -286,6 +280,7 @@ export function useUserProfile() {
 
             // Try to confirm the signature quickly
             try {
+                const latestBlockhash = await connection.getLatestBlockhash();
                 await connection.confirmTransaction({
                     signature,
                     ...latestBlockhash
@@ -350,17 +345,14 @@ export function useUserProfile() {
                 } as any)
                 .instruction();
 
-            // USE VERSIONED TRANSACTION (v0) TO SAVE SPACE
-            const latestBlockhash = await connection.getLatestBlockhash();
-            const messageV0 = new TransactionMessage({
-                payerKey: userPubkey,
-                recentBlockhash: latestBlockhash.blockhash,
+            // Correctly formatted call for Lazorkit SDK
+            // We pass 'addressLookupTableAccounts: []' to force the SDK to use VersionedTransaction (v0)
+            const signature = await signAndSendTransaction({
                 instructions: [instruction],
-            }).compileToV0Message();
-
-            const tx = new VersionedTransaction(messageV0);
-
-            await signAndSendTransaction(tx);
+                transactionOptions: {
+                    addressLookupTableAccounts: []
+                }
+            });
             await fetchProfile();
         } catch (err: any) {
             console.error("Error updating profile:", err);
