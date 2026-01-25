@@ -369,28 +369,12 @@ export default function Dashboard() {
                 }
 
                 // REMOVED MEMO for savings deposits to reduce transaction size
-                // Memo adds ~50-80 bytes which pushes us over the 1232 byte limit
+                // REMOVED ALT to minimize configuration overhead
+                // REMOVED all transactionOptions to use absolute minimum
 
-                // Fetch Address Lookup Table for compression
-                let lookupTableAccount = null;
-                try {
-                    const lookupTableAddress = new PublicKey(process.env.NEXT_PUBLIC_LOOKUP_TABLE_ADDRESS || '3yf26dUdvL6TYbRbvpCvdWU8JjL6AwjuXMcYiigmAB2D');
-                    const lookupTableResult = await connection.getAddressLookupTable(lookupTableAddress);
-                    lookupTableAccount = lookupTableResult.value;
-                    if (lookupTableAccount) console.log("✅ Using ALT for compression:", lookupTableAddress.toBase58());
-                } catch (altError) {
-                    console.warn('Failed to fetch Address Lookup Table:', altError);
-                }
-
-                // Sign and send immediately (fresh timestamp!)
-                // CRITICAL: No computeUnitLimit to avoid adding ComputeBudgetProgram instruction
-                // ComputeBudgetProgram instruction adds ~40-50 bytes which pushes us over limit
-                const signature = await signAndSendTransaction({
-                    instructions,
-                    transactionOptions: {
-                        addressLookupTableAccounts: lookupTableAccount ? [lookupTableAccount] : undefined,
-                    }
-                });
+                // Sign and send with MINIMAL configuration
+                // Remove ALL options to reduce any potential overhead
+                const signature = await signAndSendTransaction({ instructions });
 
                 showToast(`USDC saved successfully! Signature: ${signature.slice(0, 8)}...`, 'success');
 
