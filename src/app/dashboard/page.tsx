@@ -383,10 +383,11 @@ export default function Dashboard() {
                 }
 
                 // Sign and send immediately (fresh timestamp!)
+                // CRITICAL: No computeUnitLimit to avoid adding ComputeBudgetProgram instruction
+                // ComputeBudgetProgram instruction adds ~40-50 bytes which pushes us over limit
                 const signature = await signAndSendTransaction({
                     instructions,
                     transactionOptions: {
-                        computeUnitLimit: isWalletBased ? 150_000 : 250_000, // Reduced for smaller tx
                         addressLookupTableAccounts: lookupTableAccount ? [lookupTableAccount] : undefined,
                     }
                 });
