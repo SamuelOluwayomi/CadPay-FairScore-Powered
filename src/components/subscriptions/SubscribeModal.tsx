@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { XIcon, CheckIcon, EnvelopeSimpleIcon, WarningIcon, LockKeyIcon } from '@phosphor-icons/react';
+import { XIcon, CheckIcon, EnvelopeSimpleIcon, WarningIcon, LockKeyIcon, SpinnerIcon } from '@phosphor-icons/react';
 import { Service, SubscriptionPlan } from '@/data/subscriptions';
 import Loader from '@/components/shared/Loader';
 
@@ -23,6 +23,7 @@ export default function SubscribeModal({ isOpen, onClose, service, onSubscribe, 
     const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
     const [email, setEmail] = useState('');
     const [error, setError] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -189,15 +190,28 @@ export default function SubscribeModal({ isOpen, onClose, service, onSubscribe, 
                                     )}
 
                                     <button
-                                        onClick={() => selectedPlan && setStep('email')}
-                                        disabled={!selectedPlan}
-                                        className="w-full mt-6 py-4 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        onClick={async () => {
+                                            if (!selectedPlan) return;
+                                            setIsProcessing(true);
+                                            await new Promise(resolve => setTimeout(resolve, 300));
+                                            setStep('email');
+                                            setIsProcessing(false);
+                                        }}
+                                        disabled={!selectedPlan || isProcessing}
+                                        className="w-full mt-6 py-4 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                         style={{
                                             backgroundColor: service.color,
                                             color: 'white'
                                         }}
                                     >
-                                        Continue
+                                        {isProcessing ? (
+                                            <>
+                                                <SpinnerIcon size={20} className="animate-spin" />
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            'Continue'
+                                        )}
                                     </button>
                                 </motion.div>
                             )}
@@ -235,7 +249,7 @@ export default function SubscribeModal({ isOpen, onClose, service, onSubscribe, 
                                             Back
                                         </button>
                                         <button
-                                            onClick={() => {
+                                            onClick={async () => {
                                                 if (!/\S+@\S+\.\S+/.test(email)) {
                                                     setError('Please enter a valid email address');
                                                     return;
@@ -248,13 +262,23 @@ export default function SubscribeModal({ isOpen, onClose, service, onSubscribe, 
                                                     setError(`This email already has an active ${service.name} subscription!`);
                                                     return;
                                                 }
+                                                setIsProcessing(true);
+                                                await new Promise(resolve => setTimeout(resolve, 300));
                                                 setStep('pin');
+                                                setIsProcessing(false);
                                             }}
-                                            disabled={!email}
-                                            className="flex-1 py-3 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            disabled={!email || isProcessing}
+                                            className="flex-1 py-3 font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             style={{ backgroundColor: service.color, color: 'white' }}
                                         >
-                                            Continue
+                                            {isProcessing ? (
+                                                <>
+                                                    <SpinnerIcon size={20} className="animate-spin" />
+                                                    Validating...
+                                                </>
+                                            ) : (
+                                                'Continue'
+                                            )}
                                         </button>
                                     </div>
                                 </motion.div>
