@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 import LogoField from '@/components/shared/LogoField';
+import FundWalletModal from '@/components/shared/FundWalletModal';
 import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { SERVICES, CATEGORIES, Service, SubscriptionPlan } from '@/data/subscriptions';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
@@ -596,7 +597,7 @@ export default function Dashboard() {
                                 </div>
                             </div>
                             <div className="flex items-center justify-between text-xs">
-                                <span className="text-zinc-500">Devnet</span>
+                                <span className="text-zinc-500">Mainnet</span>
                                 <div className="flex items-center gap-1 text-orange-500">
                                     <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                                     Active
@@ -859,6 +860,7 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
     const [transactions, setTransactions] = useState<any[]>([]);
     const { subscriptions } = useSubscriptions();
     const [isFunding, setIsFunding] = useState(false);
+    const [showFundModal, setShowFundModal] = useState(false);
     const { showToast } = useToast();
 
     // @ts-ignore
@@ -945,10 +947,10 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
                 // Use shared connection if available, else fallback with robust error handling
                 let conn;
                 try {
-                    conn = connection || new Connection(process.env.NEXT_PUBLIC_RPC_URL || 'https://api.devnet.solana.com', 'confirmed');
+                    conn = connection || new Connection(process.env.NEXT_PUBLIC_RPC_URL || 'https://api.mainnet-beta.solana.com', 'confirmed');
                 } catch (connError) {
-                    console.warn('Failed to create specific connection, falling back to public devnet:', connError);
-                    conn = new Connection('https://api.devnet.solana.com', 'confirmed');
+                    console.warn('Failed to create specific connection, falling back to mainnet:', connError);
+                    conn = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
                 }
                 const pubkey = new PublicKey(address);
                 const signatures = await conn.getSignaturesForAddress(pubkey, { limit: 10 });
@@ -1014,20 +1016,11 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
                         </p>
                         <div className="flex flex-wrap items-center gap-4">
                             <button
-                                onClick={handleFundDemo}
-                                disabled={loading || isFunding}
+                                onClick={() => setShowFundModal(true)}
+                                disabled={loading}
                                 className="flex items-center gap-2 px-6 py-3 bg-white text-black rounded-xl font-bold hover:bg-orange-100 transition-all hover:scale-105 disabled:opacity-50"
                             >
-                                {isFunding ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                                        Funding...
-                                    </>
-                                ) : (
-                                    <>
-                                        <PlusIcon weight="bold" /> Add USDC
-                                    </>
-                                )}
+                                <PlusIcon weight="bold" /> Add USDC
                             </button>
 
                             <button
@@ -1188,6 +1181,13 @@ function OverviewSection({ userName, balance, address, usdcBalance, refetchUsdc,
                     <CopyButton text={address} />
                 </div>
             </div>
+
+            {/* QR Fund Modal */}
+            <FundWalletModal
+                isOpen={showFundModal}
+                onClose={() => setShowFundModal(false)}
+                walletAddress={address}
+            />
         </div>
     );
 }
